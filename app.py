@@ -28,7 +28,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-DEFAULT_FACE = "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=500&q=80"
 
 # ============================================================
 # 🎨 STYLE
@@ -58,28 +57,27 @@ if not api_key:
 
 
 @st.cache_resource(show_spinner=False)
-def pick_model_name(key: str) -> str:
-    """सबसे तेज़ (flash) मॉडल अपने-आप चुनता है; एक बार ही चेक करता है।"""
+def model_candidates(key: str):
+    """चालू (generateContent वाले) flash मॉडल, नए से पुराने क्रम में।"""
     genai.configure(api_key=key)
+    found = []
     try:
-        names = [
-            m.name.replace("models/", "")
-            for m in genai.list_models()
-            if "generateContent" in m.supported_generation_methods
-        ]
         bad = ("preview", "exp", "thinking", "image", "tts", "live", "lite", "embedding", "vision", "learn")
-        flash = [n for n in names if "flash" in n and not any(b in n for b in bad)]
-        for pref in ("2.5-flash", "2.0-flash", "1.5-flash"):
-            for n in flash:
-                if pref in n:
-                    return n
-        if flash:
-            return flash[0]
-        if names:
-            return names[0]
+        for m in genai.list_models():
+            if "generateContent" not in m.supported_generation_methods:
+                continue
+            n = m.name.replace("models/", "")
+            if "flash" in n and not any(b in n for b in bad):
+                mm = re.search(r"gemini-(\d+(?:\.\d+)?)", n)
+                found.append((float(mm.group(1)) if mm else 0.0, n))
     except Exception:
         pass
-    return "gemini-2.0-flash"
+    found.sort(key=lambda x: (-x[0], len(x[1])))
+    names = [n for _, n in found]
+    for extra in ("gemini-flash-latest", "gemini-3.8-flash", "gemini-3-flash", "gemini-2.5-flash", "gemini-2.0-flash"):
+        if extra not in names:
+            names.append(extra)
+    return names
 
 
 SYS_PROMPT = (
@@ -90,31 +88,51 @@ SYS_PROMPT = (
 )
 
 
-def chat_model():
-    genai.configure(api_key=api_key)
+def build_model(kind, name):
+    if kind == "chat":
+        return genai.GenerativeModel(
+            name, system_instruction=SYS_PROMPT,
+            generation_config={"max_output_tokens": 500, "temperature": 0.8},
+        )
     return genai.GenerativeModel(
-        pick_model_name(api_key),
-        system_instruction=SYS_PROMPT,
-        generation_config={"max_output_tokens": 500, "temperature": 0.8},
+        name, generation_config={"max_output_tokens": 2000, "temperature": 0.9}
     )
 
 
-def plain_model():
+def stream_gen(kind, contents):
+    """एक मॉडल 404/बंद निकले तो अपने-आप अगला मॉडल आज़माता है।"""
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel(
-        pick_model_name(api_key),
-        generation_config={"max_output_tokens": 2000, "temperature": 0.9},
-    )
-
-
-def stream_gen(model, contents):
-    resp = model.generate_content(contents, stream=True)
-    for ch in resp:
+    names = list(model_candidates(api_key))
+    good = st.session_state.get("good_model")
+    if good in names:
+        names.remove(good)
+    if good:
+        names.insert(0, good)
+    last = None
+    for name in names:
+        started = False
         try:
-            if ch.text:
-                yield ch.text
-        except Exception:
-            continue
+            resp = build_model(kind, name).generate_content(contents, stream=True)
+            for ch in resp:
+                try:
+                    tx = ch.text
+                except Exception:
+                    continue
+                if tx:
+                    started = True
+                    yield tx
+            if started:
+                st.session_state.good_model = name
+                return
+        except Exception as e:
+            if started:
+                return
+            last = e
+            msg = str(e).lower()
+            if any(k in msg for k in ("404", "no longer available", "not found", "not supported", "deprecated", "unavailable")):
+                continue
+            raise
+    raise last or RuntimeError("कोई चालू मॉडल नहीं मिला। API Key चेक करें।")
 
 
 # ============================================================
@@ -145,79 +163,123 @@ def edge_b64(text, voice):
 
 
 # ============================================================
-# 👤 TALKING FACE
+# 👤 TALKING FACE (SVG - बोलते समय मुँह, आँख, भौंहें, सिर सब चलते हैं)
 # ============================================================
 AVATAR_TPL = """
 <style>
  body{margin:0;background:transparent;font-family:sans-serif;color:#e2e8f0;text-align:center}
- .wrap{padding:8px 0}
- .ring{width:170px;height:170px;margin:0 auto;border-radius:50%;padding:5px;
-   background:radial-gradient(circle,#38bdf8,#0369a1);box-shadow:0 0 30px rgba(56,189,248,.6)}
- .face{position:relative;width:100%;height:100%;border-radius:50%;overflow:hidden;background:#0f172a}
- .face img{width:100%;height:100%;object-fit:cover;display:block}
- .mouth{position:absolute;left:50%;top:__MY__%;width:17%;height:8%;border-radius:50%;
-   background:radial-gradient(ellipse,#2a0508 0%,#5a1218 60%,rgba(90,18,24,0) 100%);
-   transform:translate(-50%,-50%) scaleY(.1);opacity:0;filter:blur(1.2px)}
- .bars{display:flex;gap:4px;justify-content:center;align-items:flex-end;height:28px;margin-top:10px}
+ .stage{width:210px;height:230px;margin:6px auto 0;border-radius:26px;overflow:hidden;
+   background:radial-gradient(circle at 50% 30%,#1e3a5f,#0b1220);
+   border:1px solid rgba(56,189,248,.5);box-shadow:0 0 28px rgba(56,189,248,.35)}
+ svg{width:100%;height:100%;display:block}
+ .bars{display:flex;gap:4px;justify-content:center;align-items:flex-end;height:26px;margin-top:8px}
  .bars i{width:5px;height:4px;border-radius:3px;background:#38bdf8;display:block}
- #st{margin-top:6px;font-size:13px;color:#34d399;font-weight:700}
- button{margin-top:8px;background:#0ea5e9;color:#fff;border:0;border-radius:20px;padding:8px 18px;font-size:14px;display:none}
+ #st{margin-top:4px;font-size:13px;color:#34d399;font-weight:700}
+ button{margin-top:6px;background:#0ea5e9;color:#fff;border:0;border-radius:20px;padding:8px 18px;font-size:14px;display:none}
 </style>
-<div class="wrap">
- <div class="ring" id="ring"><div class="face" id="face">
-   <img src="__FACE__"><div class="mouth" id="mouth"></div></div></div>
- <div class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
- <div id="st">● सुन रहा हूँ</div>
- <button id="btn">🔊 सुनिए</button>
-</div>
+<div class="stage"><svg viewBox="0 0 200 220">
+ <defs>
+  <clipPath id="mc"><path id="mcp" d=""/></clipPath>
+  <radialGradient id="skin" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="#f6c9a3"/><stop offset="1" stop-color="#e3a77c"/></radialGradient>
+ </defs>
+ <path d="M18 230 C22 180 68 168 100 168 C132 168 178 180 182 230Z" fill="#1e293b"/>
+ <path d="M80 170 L100 206 L120 170Z" fill="#f8fafc"/>
+ <path id="tie" d="M100 180 L94 194 L100 216 L106 194Z" fill="#0ea5e9"/>
+ <g id="head">
+  <g id="hairBack"></g>
+  <rect x="86" y="132" width="28" height="42" rx="10" fill="#d99a70"/>
+  <ellipse cx="54" cy="98" rx="6" ry="10" fill="#e3a77c"/><ellipse cx="146" cy="98" rx="6" ry="10" fill="#e3a77c"/>
+  <ellipse cx="100" cy="95" rx="46" ry="54" fill="url(#skin)"/>
+  <g id="hairFront"></g>
+  <ellipse cx="70" cy="112" rx="9" ry="5" fill="#f08a8a" opacity=".25"/><ellipse cx="130" cy="112" rx="9" ry="5" fill="#f08a8a" opacity=".25"/>
+  <path id="bl" fill="none" stroke="#2a1a12" stroke-width="3.2" stroke-linecap="round"/>
+  <path id="br" fill="none" stroke="#2a1a12" stroke-width="3.2" stroke-linecap="round"/>
+  <g id="eL" transform="translate(80 92)"><ellipse rx="10" ry="6.5" fill="#fff"/><circle class="ir" r="4.3" fill="#3b2314"/><circle class="ir2" r="1.8" fill="#000"/><path d="M-10 -1 Q0 -9 10 -1" fill="none" stroke="#2a1a12" stroke-width="1.6"/></g>
+  <g id="eR" transform="translate(120 92)"><ellipse rx="10" ry="6.5" fill="#fff"/><circle class="ir" r="4.3" fill="#3b2314"/><circle class="ir2" r="1.8" fill="#000"/><path d="M-10 -1 Q0 -9 10 -1" fill="none" stroke="#2a1a12" stroke-width="1.6"/></g>
+  <path d="M100 98 Q95 114 99 117 Q104 119 107 115" fill="none" stroke="#c98a62" stroke-width="2" stroke-linecap="round"/>
+  <g transform="translate(100 134)">
+   <path id="inner" fill="#4a0d14"/>
+   <g clip-path="url(#mc)"><rect id="teeth" x="-22" y="-4" width="44" height="4" fill="#fff"/><ellipse id="tongue" cx="0" cy="6" rx="8" ry="4" fill="#c4566a"/></g>
+   <path id="lipU" fill="none" stroke="#b8475a" stroke-width="3" stroke-linecap="round"/>
+   <path id="lipL" fill="none" stroke="#c9606f" stroke-width="3.6" stroke-linecap="round"/>
+  </g>
+ </g>
+</svg></div>
+<div class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<div id="st">● सुन रहा हूँ</div>
+<button id="btn">🔊 सुनिए</button>
 <script>
-const P = __PAYLOAD__;
-const mouth=document.getElementById('mouth'), face=document.getElementById('face'),
-      ring=document.getElementById('ring'), st=document.getElementById('st'),
-      btn=document.getElementById('btn'), bars=[...document.querySelectorAll('#bars i')];
-let speaking=false, amp=0, t=0;
-function setSpeak(v){ speaking=v; st.textContent = v ? '🗣 बोल रहा हूँ…' : '● सुन रहा हूँ'; }
-function loop(){
-  t+=0.016;
-  const target = speaking ? (0.3+0.7*Math.abs(Math.sin(t*11))*(0.55+0.45*Math.random())) : 0;
-  amp += (target-amp)*0.35;
-  mouth.style.opacity = speaking ? (0.55+amp*0.4) : 0;
-  mouth.style.transform = 'translate(-50%,-50%) scaleY('+(0.12+amp*1.5)+')';
-  const breathe = 1+0.004*Math.sin(t*1.6);
-  face.style.transform = 'scale('+(breathe+amp*0.012)+') rotate('+(speaking?Math.sin(t*3)*0.5:0)+'deg)';
-  ring.style.boxShadow = '0 0 '+(30+amp*40)+'px rgba(56,189,248,'+(0.5+amp*0.4)+')';
-  bars.forEach((b,i)=>{ b.style.height = (4+amp*24*(0.5+0.5*Math.abs(Math.sin(t*9+i)))) + 'px'; });
-  requestAnimationFrame(loop);
+const G='__G__', P=__PAYLOAD__;
+const $=id=>document.getElementById(id);
+if(G==='f'){
+  $('hairBack').innerHTML='<path d="M46 100 C36 30 164 30 154 100 C160 135 160 165 150 186 L50 186 C40 165 40 135 46 100Z" fill="#2b1a12"/>';
+  $('hairFront').innerHTML='<path d="M52 94 C44 34 156 34 148 94 C144 64 124 48 98 48 C72 50 56 64 52 94Z" fill="#2b1a12"/><circle cx="53" cy="114" r="3" fill="#facc15"/><circle cx="147" cy="114" r="3" fill="#facc15"/>';
+  $('tie').style.display='none';
+}else{
+  $('hairFront').innerHTML='<path d="M52 92 C44 30 156 30 148 92 C146 66 128 50 100 50 C72 50 54 66 52 92Z" fill="#1c1410"/>';
 }
-loop();
+const bars=[...document.querySelectorAll('#bars i')], irs=document.querySelectorAll('.ir'), ir2s=document.querySelectorAll('.ir2');
+let speaking=false, amp=0, t=0, blink=0, nextBlink=2, thinking=(P.mode==='think');
+function setSpeak(v){ speaking=v; $('st').textContent = v ? '🗣 बोल रहा हूँ…' : '● सुन रहा हूँ'; }
+if(thinking) $('st').textContent='🤔 सोच रहा हूँ…';
+function frame(){
+  t+=0.016;
+  const target = speaking ? (0.25+0.75*Math.abs(Math.sin(t*10.5))*(0.5+0.5*Math.abs(Math.sin(t*3.1+1)))) : 0;
+  amp += (target-amp)*0.4;
+  nextBlink-=0.016; if(nextBlink<0){ blink=1; nextBlink=2+Math.random()*3; }
+  blink=Math.max(0,blink-0.12);
+  const sy = 1-0.95*(blink>0?Math.sin(blink*Math.PI):0);
+  $('eL').setAttribute('transform','translate(80 92) scale(1 '+sy+')');
+  $('eR').setAttribute('transform','translate(120 92) scale(1 '+sy+')');
+  const gx=Math.sin(t*0.7)*1.8, gy=thinking?-2.6:Math.sin(t*0.5)*0.8;
+  irs.forEach(e=>{e.setAttribute('cx',gx);e.setAttribute('cy',gy)}); ir2s.forEach(e=>{e.setAttribute('cx',gx);e.setAttribute('cy',gy)});
+  const r=(thinking?4:1.5*amp)+Math.sin(t*0.9)*0.5;
+  $('bl').setAttribute('d','M68 '+(79-r)+' Q80 '+(73-r)+' 92 '+(78-r));
+  $('br').setAttribute('d','M108 '+(78-r)+' Q120 '+(73-r)+' 132 '+(79-r));
+  const h=amp*13, w=14+(speaking?5*Math.sin(t*5.3+1)*amp+3*amp:0), c=-2.5*(1-Math.min(1,amp*2)), yt=-4, yb=yt+2*h+2;
+  const inner='M '+(-w)+' '+c+' Q 0 '+yt+' '+w+' '+c+' Q 0 '+yb+' '+(-w)+' '+c+' Z';
+  $('inner').setAttribute('d',inner); $('mcp').setAttribute('d',inner);
+  $('inner').style.opacity = h>1.2?1:0;
+  $('lipU').setAttribute('d','M '+(-w)+' '+c+' Q '+(-w/2)+' '+(yt-1.5)+' 0 '+(yt*0.5+c*0.5-1)+' Q '+(w/2)+' '+(yt-1.5)+' '+w+' '+c);
+  $('lipL').setAttribute('d','M '+(-w)+' '+c+' Q 0 '+yb+' '+w+' '+c);
+  $('teeth').setAttribute('y',0.5*c+0.5*yt); $('teeth').setAttribute('height',4*Math.min(1,h/4));
+  $('tongue').setAttribute('cy',0.5*c+0.5*yb-1.5);
+  const nod=speaking?Math.sin(t*3.2)*1.3*(0.5+amp):Math.sin(t*1.1)*0.6, tilt=(thinking?4:0)+Math.sin(t*0.8)*1.2;
+  $('head').setAttribute('transform','translate(0 '+nod+') rotate('+tilt+' 100 175)');
+  bars.forEach((b,i)=>{ b.style.height=(4+amp*22*(0.5+0.5*Math.abs(Math.sin(t*9+i))))+'px'; });
+  requestAnimationFrame(frame);
+}
+frame();
 function speakBrowser(){
   if(!P.text) return;
+  let started=false;
   speechSynthesis.cancel();
   const u=new SpeechSynthesisUtterance(P.text); u.lang='hi-IN'; u.rate=1.05;
   const v=speechSynthesis.getVoices().find(v=>v.lang.replace('_','-').toLowerCase().startsWith('hi'));
   if(v) u.voice=v;
-  u.onstart=()=>setSpeak(true); u.onend=u.onerror=()=>setSpeak(false);
+  u.onstart=()=>{started=true;setSpeak(true)};
+  u.onend=()=>{started=true;setSpeak(false)};
+  u.onerror=()=>{started=true;setSpeak(false);$('st').textContent='▶ "सुनिए" बटन दबाएँ'};
   speechSynthesis.speak(u);
+  setTimeout(()=>{ if(!started){ setSpeak(true); setTimeout(()=>setSpeak(false), P.text.length*65); } },1200);
 }
 function speakAudio(){
-  window._a = new Audio('data:audio/mp3;base64,'+P.audio);
-  window._a.onplay=()=>setSpeak(true); window._a.onended=window._a.onpause=()=>setSpeak(false);
-  window._a.play().catch(()=>{ st.textContent='▶ नीचे बटन दबाएँ'; });
+  window._a=new Audio('data:audio/mp3;base64,'+P.audio);
+  window._a.onplay=()=>setSpeak(true);
+  window._a.onended=window._a.onpause=()=>setSpeak(false);
+  window._a.play().catch(()=>{ $('st').textContent='▶ "सुनिए" बटन दबाएँ'; });
 }
 function go(){ P.audio ? speakAudio() : speakBrowser(); }
-if(P.text){ btn.style.display='inline-block'; btn.onclick=go; setTimeout(go,250); }
+if(P.text){ $('btn').style.display='inline-block'; $('btn').onclick=go; setTimeout(go,250); }
 </script>
 """
 
 
-def render_avatar(slot, face_src, mouth_y, text="", audio_b64=None):
-    html = (
-        AVATAR_TPL.replace("__FACE__", face_src)
-        .replace("__MY__", str(mouth_y))
-        .replace("__PAYLOAD__", json.dumps({"text": text, "audio": audio_b64}))
-    )
+def render_avatar(slot, gender, text="", audio_b64=None, mode="idle"):
+    payload = json.dumps({"text": text, "audio": audio_b64, "mode": mode}).replace("</", "<\\/")
+    html = AVATAR_TPL.replace("__G__", "f" if gender == "महिला" else "m").replace("__PAYLOAD__", payload)
     with slot.container():
-        components.html(html, height=290)
+        components.html(html, height=335)
 
 
 # ============================================================
@@ -304,22 +366,16 @@ if "messages" not in st.session_state:
 if "last_audio" not in st.session_state:
     st.session_state.last_audio = ""
 
-with st.expander("⚙️ सेटिंग (चेहरा, आवाज़)"):
-    up = st.file_uploader("अपना चेहरा/फोटो लगाएँ (सीधी, साफ़ फ्रंट फोटो)", type=["png", "jpg", "jpeg"])
-    mouth_y = st.slider("मुँह की ऊँचाई (फोटो के हिसाब से सेट करें)", 55, 85, 72)
+with st.expander("⚙️ सेटिंग (आवाज़, चेहरा)"):
     voice_mode = st.radio("आवाज़", ["⚡ तेज़ (फोन की आवाज़)", "🎙 ज़्यादा इंसानी (थोड़ा धीमा)"], index=0)
-    gender = st.radio("आवाज़ का प्रकार (इंसानी मोड में)", ["पुरुष", "महिला"], horizontal=True)
+    gender = st.radio("चेहरा और आवाज़", ["पुरुष", "महिला"], horizontal=True)
     default_music = st.selectbox("गाना चलाने के लिए डिफ़ॉल्ट ऐप", ["YouTube", "Spotify", "JioSaavn"])
 
-if up is not None:
-    face_src = "data:{};base64,{}".format(up.type, base64.b64encode(up.getvalue()).decode())
-else:
-    face_src = DEFAULT_FACE
 EDGE_VOICE = "hi-IN-MadhurNeural" if gender == "पुरुष" else "hi-IN-SwaraNeural"
 
 st.markdown("<h3 style='text-align:center;margin:0'>👑 Executive AI Agent</h3>", unsafe_allow_html=True)
 avatar_slot = st.empty()
-render_avatar(avatar_slot, face_src, mouth_y)
+render_avatar(avatar_slot, gender)
 
 tab_chat, tab_music, tab_social, tab_trend = st.tabs(
     ["💬 चैट", "🎵 म्यूज़िक", "📱 सोशल मीडिया", "🔥 ट्रेंड & SEO"]
@@ -362,6 +418,7 @@ with tab_chat:
             with st.chat_message("user"):
                 st.markdown(user_text)
 
+            render_avatar(avatar_slot, gender, mode="think")
             cmd = handle_command(user_text, default_music) if not audio_bytes else None
             reply, link = "", None
             with st.chat_message("assistant"):
@@ -383,7 +440,7 @@ with tab_chat:
                     else:
                         last = {"role": "user", "parts": [user_text]}
                     try:
-                        reply = st.write_stream(stream_gen(chat_model(), history + [last]))
+                        reply = st.write_stream(stream_gen("chat", history + [last]))
                     except Exception as e:
                         reply = f"⚠️ दिक्कत आई: {e}"
                         st.markdown(reply)
@@ -394,7 +451,7 @@ with tab_chat:
             audio_b64 = None
             if spoken and voice_mode.startswith("🎙"):
                 audio_b64 = edge_b64(spoken, EDGE_VOICE)
-            render_avatar(avatar_slot, face_src, mouth_y, text=spoken, audio_b64=audio_b64)
+            render_avatar(avatar_slot, gender, text=spoken, audio_b64=audio_b64)
 
     if st.session_state.messages and st.button("🗑 चैट साफ़ करें"):
         st.session_state.messages = []
@@ -440,7 +497,7 @@ with tab_social:
                 "कमेंट के जवाब (5 नमूने)": f"Write 5 friendly reply templates for comments on a {plat} post about '{topic}'.",
             }
             try:
-                st.write_stream(stream_gen(plain_model(), f"{prompts[what]} Tone: {tone}. Language: {lang}."))
+                st.write_stream(stream_gen("plain", f"{prompts[what]} Tone: {tone}. Language: {lang}."))
             except Exception as e:
                 st.error(f"Error: {e}")
     st.markdown("**सीधे खोलें**")
@@ -460,7 +517,7 @@ with tab_trend:
             st.error("API Key चाहिए।")
         else:
             try:
-                st.write_stream(stream_gen(plain_model(), f"Give 5 viral reel ideas with hooks, scripts (30 sec) and strategy for niche: {niche}. Answer in Hinglish."))
+                st.write_stream(stream_gen("plain", f"Give 5 viral reel ideas with hooks, scripts (30 sec) and strategy for niche: {niche}. Answer in Hinglish."))
             except Exception as e:
                 st.error(f"Error: {e}")
     kw = st.text_input("वीडियो का मुख्य कीवर्ड")
@@ -469,6 +526,6 @@ with tab_trend:
             st.error("API Key और कीवर्ड चाहिए।")
         else:
             try:
-                st.write_stream(stream_gen(plain_model(), f"Generate 30 viral hashtags, 10 SEO keywords and 3 title options for YouTube Shorts & Instagram Reels about: {kw}"))
+                st.write_stream(stream_gen("plain", f"Generate 30 viral hashtags, 10 SEO keywords and 3 title options for YouTube Shorts & Instagram Reels about: {kw}"))
             except Exception as e:
                 st.error(f"Error: {e}")
