@@ -15,6 +15,7 @@ import base64
 import hashlib
 import json
 import re
+import time
 import urllib.parse
 
 import google.generativeai as genai
@@ -58,23 +59,25 @@ if not api_key:
 
 @st.cache_resource(show_spinner=False)
 def model_candidates(key: str):
-    """चालू (generateContent वाले) flash मॉडल, नए से पुराने क्रम में।"""
+    """चालू मॉडल: पहले flash (नए से पुराने), फिर lite, फिर बैकअप नाम। हर मॉडल की फ्री लिमिट अलग होती है।"""
     genai.configure(api_key=key)
-    found = []
+    flash, lite = [], []
     try:
-        bad = ("preview", "exp", "thinking", "image", "tts", "live", "lite", "embedding", "vision", "learn")
+        bad = ("preview", "exp", "thinking", "image", "tts", "live", "embedding", "vision", "learn", "audio")
         for m in genai.list_models():
             if "generateContent" not in m.supported_generation_methods:
                 continue
             n = m.name.replace("models/", "")
-            if "flash" in n and not any(b in n for b in bad):
-                mm = re.search(r"gemini-(\d+(?:\.\d+)?)", n)
-                found.append((float(mm.group(1)) if mm else 0.0, n))
+            if "flash" not in n or any(b in n for b in bad):
+                continue
+            mm = re.search(r"gemini-(\d+(?:\.\d+)?)", n)
+            item = (float(mm.group(1)) if mm else 0.0, n)
+            (lite if "lite" in n else flash).append(item)
     except Exception:
         pass
-    found.sort(key=lambda x: (-x[0], len(x[1])))
-    names = [n for _, n in found]
-    for extra in ("gemini-flash-latest", "gemini-3.8-flash", "gemini-3-flash", "gemini-2.5-flash", "gemini-2.0-flash"):
+    order = lambda L: [n for _, n in sorted(L, key=lambda x: (-x[0], len(x[1])))]
+    names = order(flash) + order(lite)
+    for extra in ("gemini-flash-latest", "gemini-flash-lite-latest", "gemini-3.8-flash", "gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"):
         if extra not in names:
             names.append(extra)
     return names
@@ -100,16 +103,20 @@ def build_model(kind, name):
 
 
 def stream_gen(kind, contents):
-    """एक मॉडल 404/बंद निकले तो अपने-आप अगला मॉडल आज़माता है।"""
+    """404 (बंद मॉडल) या 429 (लिमिट खत्म) आए तो अपने-आप अगला मॉडल आज़माता है।"""
     genai.configure(api_key=api_key)
     names = list(model_candidates(api_key))
     good = st.session_state.get("good_model")
     if good in names:
         names.remove(good)
-    if good:
         names.insert(0, good)
-    last = None
+    dead = st.session_state.setdefault("dead_models", {})
+    now = time.time()
+    last, quota_hit = None, False
     for name in names:
+        if now - dead.get(name, 0) < 900:
+            quota_hit = quota_hit or dead.get(name) is not None
+            continue
         started = False
         try:
             resp = build_model(kind, name).generate_content(contents, stream=True)
@@ -129,9 +136,19 @@ def stream_gen(kind, contents):
                 return
             last = e
             msg = str(e).lower()
+            if any(k in msg for k in ("429", "quota", "resource_exhausted", "rate limit")):
+                quota_hit = True
+                dead[name] = time.time()
+                continue
             if any(k in msg for k in ("404", "no longer available", "not found", "not supported", "deprecated", "unavailable")):
+                dead[name] = time.time()
                 continue
             raise
+    if quota_hit:
+        raise RuntimeError(
+            "आज की फ्री लिमिट सभी मॉडलों पर खत्म हो गई है (फ्री में हर मॉडल पर रोज़ सिर्फ़ ~20 रिक्वेस्ट मिलती हैं)। "
+            "कल दोबारा चलेगा, या Google AI Studio में billing चालू करें, या नए प्रोजेक्ट की नई Key बनाएँ।"
+        )
     raise last or RuntimeError("कोई चालू मॉडल नहीं मिला। API Key चेक करें।")
 
 
@@ -275,11 +292,94 @@ if(P.text){ $('btn').style.display='inline-block'; $('btn').onclick=go; setTimeo
 """
 
 
+PHOTO_TPL = """
+<style>
+ body{margin:0;background:transparent;font-family:sans-serif;color:#e2e8f0;text-align:center}
+ canvas{width:230px;border-radius:24px;border:1px solid rgba(56,189,248,.5);box-shadow:0 0 28px rgba(56,189,248,.35);margin-top:6px}
+ .bars{display:flex;gap:4px;justify-content:center;align-items:flex-end;height:26px;margin-top:8px}
+ .bars i{width:5px;height:4px;border-radius:3px;background:#38bdf8;display:block}
+ #st{margin-top:4px;font-size:13px;color:#34d399;font-weight:700}
+ button{margin-top:6px;background:#0ea5e9;color:#fff;border:0;border-radius:20px;padding:8px 18px;font-size:14px;display:none}
+</style>
+<canvas id="cv"></canvas>
+<div class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<div id="st">● सुन रहा हूँ</div>
+<button id="btn">🔊 सुनिए</button>
+<script>
+const P=__PAYLOAD__, F=__PHOTO__;
+const $=id=>document.getElementById(id);
+const cv=$('cv'), ctx=cv.getContext('2d'), off=document.createElement('canvas'), octx=off.getContext('2d');
+const bars=[...document.querySelectorAll('#bars i')];
+let speaking=false, amp=0, t=0, thinking=(P.mode==='think'), W=480, H=600;
+function setSpeak(v){ speaking=v; $('st').textContent = v ? '🗣 बोल रहा हूँ…' : '● सुन रहा हूँ'; }
+if(thinking) $('st').textContent='🤔 सोच रहा हूँ…';
+const img=new Image();
+img.onload=()=>{ H=Math.min(640,Math.round(W*img.height/img.width)); cv.width=W; cv.height=H; off.width=W; off.height=H; frame(); };
+img.src=F.src;
+function frame(){
+  t+=0.016;
+  const target = speaking ? (0.25+0.75*Math.abs(Math.sin(t*10.5))*(0.5+0.5*Math.abs(Math.sin(t*3.1+1)))) : 0;
+  amp += (target-amp)*0.4;
+  const sway=Math.sin(t*0.8)*0.5+(thinking?2.5:0), bob=speaking?Math.sin(t*3.2)*1.6*(0.4+amp):Math.sin(t*1.1)*1.2;
+  ctx.clearRect(0,0,W,H); ctx.save();
+  ctx.translate(W/2,H*0.6); ctx.rotate(sway*Math.PI/180); ctx.scale(1.04,1.04); ctx.translate(-W/2,-H*0.6+bob);
+  ctx.drawImage(img,0,0,W,H);
+  const mx=F.mx*W, my=F.my*H, mw=F.mw*W, open=amp*mw*0.22;
+  if(open>0.8){
+    octx.globalCompositeOperation='source-over'; octx.clearRect(0,0,W,H);
+    octx.drawImage(img,0,open,W,H);
+    octx.globalCompositeOperation='destination-in';
+    let g=octx.createLinearGradient(0,my-3,0,my+4); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,1)');
+    octx.fillStyle=g; octx.fillRect(0,0,W,H);
+    octx.globalCompositeOperation='destination-in';
+    const R=mw*1.7; let rg=octx.createRadialGradient(mx,my+mw*0.8,R*0.35,mx,my+mw*0.8,R);
+    rg.addColorStop(0,'rgba(0,0,0,1)'); rg.addColorStop(1,'rgba(0,0,0,0)');
+    octx.fillStyle=rg; octx.fillRect(0,0,W,H);
+    // पहले मुँह का अंदर (गैप), फिर नीचे का जबड़ा
+    ctx.fillStyle='#3a0b10'; ctx.beginPath(); ctx.ellipse(mx,my+open*0.5,mw*0.46,open*0.62+1,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(245,240,235,'+Math.min(.9,open/9)+')'; ctx.beginPath(); ctx.ellipse(mx,my+open*0.18,mw*0.36,Math.max(1,open*0.2),0,0,Math.PI*2); ctx.fill();
+    ctx.drawImage(off,0,0);
+  }
+  if(F.guide){ ctx.strokeStyle='#ef4444'; ctx.lineWidth=2; ctx.strokeRect(mx-mw/2,my-6,mw,12); ctx.beginPath(); ctx.moveTo(mx-12,my); ctx.lineTo(mx+12,my); ctx.moveTo(mx,my-12); ctx.lineTo(mx,my+12); ctx.stroke(); }
+  ctx.restore();
+  bars.forEach((b,i)=>{ b.style.height=(4+amp*22*(0.5+0.5*Math.abs(Math.sin(t*9+i))))+'px'; });
+  requestAnimationFrame(frame);
+}
+function speakBrowser(){
+  if(!P.text) return;
+  let started=false;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(P.text); u.lang='hi-IN'; u.rate=1.05;
+  const v=speechSynthesis.getVoices().find(v=>v.lang.replace('_','-').toLowerCase().startsWith('hi'));
+  if(v) u.voice=v;
+  u.onstart=()=>{started=true;setSpeak(true)};
+  u.onend=()=>{started=true;setSpeak(false)};
+  u.onerror=()=>{started=true;setSpeak(false);$('st').textContent='▶ "सुनिए" बटन दबाएँ'};
+  speechSynthesis.speak(u);
+  setTimeout(()=>{ if(!started){ setSpeak(true); setTimeout(()=>setSpeak(false), P.text.length*65); } },1200);
+}
+function speakAudio(){
+  window._a=new Audio('data:audio/mp3;base64,'+P.audio);
+  window._a.onplay=()=>setSpeak(true);
+  window._a.onended=window._a.onpause=()=>setSpeak(false);
+  window._a.play().catch(()=>{ $('st').textContent='▶ "सुनिए" बटन दबाएँ'; });
+}
+function go(){ P.audio ? speakAudio() : speakBrowser(); }
+if(P.text){ $('btn').style.display='inline-block'; $('btn').onclick=go; setTimeout(go,250); }
+</script>
+"""
+
+
 def render_avatar(slot, gender, text="", audio_b64=None, mode="idle"):
     payload = json.dumps({"text": text, "audio": audio_b64, "mode": mode}).replace("</", "<\\/")
-    html = AVATAR_TPL.replace("__G__", "f" if gender == "महिला" else "m").replace("__PAYLOAD__", payload)
+    if PHOTO:
+        html = PHOTO_TPL.replace("__PAYLOAD__", payload).replace("__PHOTO__", json.dumps(PHOTO))
+        height = 470
+    else:
+        html = AVATAR_TPL.replace("__G__", "f" if gender == "महिला" else "m").replace("__PAYLOAD__", payload)
+        height = 335
     with slot.container():
-        components.html(html, height=335)
+        components.html(html, height=height)
 
 
 # ============================================================
@@ -370,8 +470,26 @@ with st.expander("⚙️ सेटिंग (आवाज़, चेहरा)")
     voice_mode = st.radio("आवाज़", ["⚡ तेज़ (फोन की आवाज़)", "🎙 ज़्यादा इंसानी (थोड़ा धीमा)"], index=0)
     gender = st.radio("चेहरा और आवाज़", ["पुरुष", "महिला"], horizontal=True)
     default_music = st.selectbox("गाना चलाने के लिए डिफ़ॉल्ट ऐप", ["YouTube", "Spotify", "JioSaavn"])
+    up = st.file_uploader("👤 असली इंसानी चेहरा: किसी आदमी की सामने से, साफ़ फोटो डालें (अपनी या जिसकी अनुमति हो)", type=["png", "jpg", "jpeg"])
+    mx = st.slider("मुँह की जगह: बाएँ-दाएँ", 0, 100, 50)
+    my = st.slider("मुँह की जगह: ऊपर-नीचे", 0, 100, 68)
+    mw = st.slider("मुँह की चौड़ाई", 5, 40, 18)
+    show_guide = st.checkbox("लाल निशान दिखाओ (मुँह पर ठीक बिठाने के लिए)")
 
 EDGE_VOICE = "hi-IN-MadhurNeural" if gender == "पुरुष" else "hi-IN-SwaraNeural"
+PHOTO = None
+if up is not None:
+    try:
+        import io
+        from PIL import Image
+        im = Image.open(up).convert("RGB")
+        im.thumbnail((640, 800))
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=85)
+        PHOTO = {"src": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode(),
+                 "mx": mx / 100, "my": my / 100, "mw": mw / 100, "guide": show_guide}
+    except Exception:
+        PHOTO = None
 
 st.markdown("<h3 style='text-align:center;margin:0'>👑 Executive AI Agent</h3>", unsafe_allow_html=True)
 avatar_slot = st.empty()
@@ -442,7 +560,7 @@ with tab_chat:
                     try:
                         reply = st.write_stream(stream_gen("chat", history + [last]))
                     except Exception as e:
-                        reply = f"⚠️ दिक्कत आई: {e}"
+                        reply = f"⚠️ दिक्कत आई: {str(e)[:400]}"
                         st.markdown(reply)
 
             st.session_state.messages.append({"role": "assistant", "content": reply, **(link or {})})
