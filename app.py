@@ -102,18 +102,18 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- GEMINI API CONFIGURATION ---
+# --- GEMINI API CONFIGURATION (Using gemini-pro for universal compatibility) ---
 api_ready = False
 if "GEMINI_API_KEY" in st.secrets:
   genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-  model = genai.GenerativeModel("gemini-1.5-flash")
+  model = genai.GenerativeModel("gemini-pro")
   api_ready = True
 else:
   st.sidebar.title("⚙️ Config")
   k_input = st.sidebar.text_input("Gemini API Key", type="password")
   if k_input:
     genai.configure(api_key=k_input)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-pro")
     api_ready = True
 
 # ==========================================
