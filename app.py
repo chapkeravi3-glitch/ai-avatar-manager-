@@ -102,19 +102,34 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- GEMINI API CONFIGURATION (Using gemini-pro for universal compatibility) ---
+# --- GEMINI API CONFIGURATION (Universal Fallback for Model Discovery) ---
 api_ready = False
-if "GEMINI_API_KEY" in st.secrets:
-  genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-  model = genai.GenerativeModel("gemini-pro")
-  api_ready = True
-else:
-  st.sidebar.title("⚙️ Config")
-  k_input = st.sidebar.text_input("Gemini API Key", type="password")
-  if k_input:
-    genai.configure(api_key=k_input)
-    model = genai.GenerativeModel("gemini-pro")
+model = None
+
+try:
+  if "GEMINI_API_KEY" in st.secrets:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+  else:
+    st.sidebar.title("⚙️ Config")
+    k_input = st.sidebar.text_input("Gemini API Key", type="password")
+    if k_input:
+      genai.configure(api_key=k_input)
+
+  # Automatically pick an available working model
+  for m in genai.list_models():
+    if "generateContent" in m.supported_generation_methods:
+      model = genai.GenerativeModel(m.name)
+      api_ready = True
+      break
+except Exception as e:
+  # Ultimate fallback if listing fails
+  try:
+    if "GEMINI_API_KEY" in st.secrets:
+      genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    model = genai.GenerativeModel("gemini-1.5-flash")
     api_ready = True
+  except Exception as ex:
+    api_ready = False
 
 # ==========================================
 # 👤 FULL-SCREEN HUMAN-LIKE AVATAR HERO DISPLAY
@@ -163,8 +178,8 @@ with tab1:
       st.markdown(user_input)
 
     with st.chat_message("assistant"):
-      if not api_ready:
-        reply = "⚠️ कृपया `.streamlit/secrets.toml` में या साइडबार में अपनी Gemini API Key सेट करें।"
+      if not api_ready or model is None:
+        reply = "⚠️ कृपया `.streamlit/secrets.toml` में या साइडबार में अपनी सही Gemini API Key सेट करें।"
       else:
         try:
           with st.spinner("Agent is processing your command..."):
@@ -198,7 +213,7 @@ with tab2:
       ],
   )
   if st.button("ट्रेंडिंग टॉपिक्स और रील्स आइडिया खोजें"):
-    if api_ready:
+    if api_ready and model:
       with st.spinner("Trend Hunter इंटरनेट खंगाल रहा है..."):
         res = model.generate_content(
             f"As a viral growth expert, give 3 trending topics, high-view reel"
@@ -239,12 +254,11 @@ with tab4:
           "YouTube Studio Strategy",
           "Instagram Reel Optimizer",
           "Facebook Page Manager",
-          "Twitter / X Thread Creator",
       ],
   )
   topic = st.text_input("किस टॉपिक पर पोस्ट तैयार करनी है?")
   if st.button("कंटेंट और स्ट्रैटेजी बनाएं"):
-    if api_ready and topic:
+    if api_ready and model and topic:
       with st.spinner("Social Manager पोस्ट तैयार कर रहा है..."):
         res = model.generate_content(
             f"Create expert viral post, caption, and schedule strategy for"
@@ -259,7 +273,7 @@ with tab5:
   st.subheader("🏷️ SEO & Hashtag Generator")
   ht_keyword = st.text_input("मुख्य कीवर्ड लिखें:")
   if st.button("वायरल हैशटैग्स जनरेट करें"):
-    if api_ready and ht_keyword:
+    if api_ready and model and ht_keyword:
       with st.spinner("SEO Agent हैशटैग्स खोज रहा है..."):
         res = model.generate_content(
             f"Generate 30 high-ranking viral hashtags and SEO keywords for"
