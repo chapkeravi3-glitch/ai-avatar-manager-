@@ -148,7 +148,7 @@ st.markdown(
 )
 
 # ==========================================
-# ⚡ GEMINI API SETUP (Using universal gemini-pro)
+# ⚡ SMART AUTO-MODEL DISCOVERY & API CONFIG
 # ==========================================
 api_ready = False
 model = None
@@ -162,9 +162,18 @@ try:
     if k_input:
       genai.configure(api_key=k_input)
 
-  # Using gemini-pro for universal compatibility and zero 404 errors
-  model = genai.GenerativeModel("gemini-pro")
-  api_ready = True
+  # Automatically find a working model from your API key permissions
+  for m in genai.list_models():
+    if "generateContent" in m.supported_generation_methods:
+      model = genai.GenerativeModel(m.name)
+      api_ready = True
+      break
+
+  # If auto-discovery didn't assign, try standard fallback
+  if not model:
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    api_ready = True
+
 except Exception as e:
   api_ready = False
 
