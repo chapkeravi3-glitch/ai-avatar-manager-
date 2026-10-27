@@ -148,7 +148,7 @@ st.markdown(
 )
 
 # ==========================================
-# ⚡ SMART AUTO-MODEL DISCOVERY & API CONFIG
+# ⚡ GEMINI API SETUP (Using latest gemini-3.8-flash)
 # ==========================================
 api_ready = False
 model = None
@@ -162,18 +162,9 @@ try:
     if k_input:
       genai.configure(api_key=k_input)
 
-  # Automatically find a working model from your API key permissions
-  for m in genai.list_models():
-    if "generateContent" in m.supported_generation_methods:
-      model = genai.GenerativeModel(m.name)
-      api_ready = True
-      break
-
-  # If auto-discovery didn't assign, try standard fallback
-  if not model:
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    api_ready = True
-
+  # Directly targeting the newly recommended model
+  model = genai.GenerativeModel("gemini-3.8-flash")
+  api_ready = True
 except Exception as e:
   api_ready = False
 
