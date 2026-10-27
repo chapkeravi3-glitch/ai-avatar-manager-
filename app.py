@@ -1,10 +1,6 @@
-import os
-import google.generativeai as genai
 import streamlit as st
 
-# ==========================================
-# ⚙️ PAGE CONFIGURATION
-# ==========================================
+# Page Configuration
 st.set_page_config(
     page_title="Autonomous Executive AI Human Agent",
     page_icon="👑",
@@ -12,340 +8,245 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# API Key Check from Streamlit Secrets or Sidebar
+api_key = ""
+if "GEMINI_API_KEY" in st.secrets:
+  api_key = st.secrets["GEMINI_API_KEY"]
+
+st.sidebar.title("⚙️ System Configuration")
+k_input = st.sidebar.text_input("Enter Gemini API Key", type="password", value=api_key)
+if k_input:
+  api_key = k_input
+
 # ==========================================
-# 🎨 CINEMATIC UI & HUMAN AVATAR CSS
+# 🎨 ULTRA-FAST CINEMATIC UI & TALKING AVATAR HTML/JS
 # ==========================================
-st.markdown(
-    """
+html_code = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Executive Agent</title>
     <style>
-    .main { 
-        background: radial-gradient(circle at top, #0f172a 0%, #020617 100%); 
-        color: #f8fafc; 
-        font-family: 'Inter', sans-serif; 
-    }
-    
-    .avatar-hero-container {
-        position: relative;
-        width: 100%;
-        max-width: 900px;
-        margin: 0 auto 30px auto;
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.9));
-        border-radius: 28px;
-        border: 1px solid rgba(56, 189, 248, 0.4);
-        padding: 30px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 25px 60px rgba(0,0,0,0.8);
-        backdrop-filter: blur(16px);
-    }
+        * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }}
+        body {{ background: radial-gradient(circle at top, #0f172a 0%, #020617 100%); color: #f8fafc; min-height: 100vh; padding: 20px; }}
+        
+        .container {{ max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }}
 
-    .neural-face-wrapper {
-        position: relative;
-        width: 180px;
-        height: 180px;
-        border-radius: 50%;
-        background: radial-gradient(circle, #38bdf8 0%, #0284c7 50%, #0369a1 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 0 50px rgba(56, 189, 248, 0.8);
-        animation: neural-pulse 3.5s infinite ease-in-out;
-    }
+        /* Cinematic Talking Avatar Hero */
+        .avatar-hero {{
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.95));
+            border-radius: 24px;
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8), inset 0 0 25px rgba(56, 189, 248, 0.1);
+            backdrop-filter: blur(12px);
+        }}
 
-    @keyframes neural-pulse {
-        0% { transform: scale(0.97); box-shadow: 0 0 35px rgba(56, 189, 248, 0.6); }
-        50% { transform: scale(1.03); box-shadow: 0 0 65px rgba(56, 189, 248, 0.9); }
-        100% { transform: scale(0.97); box-shadow: 0 0 35px rgba(56, 189, 248, 0.6); }
-    }
+        .neural-face {{
+            position: relative;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #38bdf8 0%, #0284c7 60%, #0369a1 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 40px rgba(56, 189, 248, 0.8);
+            animation: pulse-glow 3s infinite ease-in-out;
+        }}
 
-    .anchor-avatar-img {
-        width: 168px;
-        height: 168px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 3px solid rgba(255, 255, 255, 0.8);
-    }
+        @keyframes pulse-glow {{
+            0% {{ transform: scale(0.98); box-shadow: 0 0 30px rgba(56, 189, 248, 0.5); }}
+            50% {{ transform: scale(1.04); box-shadow: 0 0 60px rgba(56, 189, 248, 0.9); }}
+            100% {{ transform: scale(0.98); box-shadow: 0 0 30px rgba(56, 189, 248, 0.5); }}
+        }}
 
-    .neural-badge {
-        margin-top: 15px;
-        background: rgba(16, 185, 129, 0.15);
-        border: 1px solid #10b981;
-        color: #34d399;
-        padding: 6px 20px;
-        border-radius: 30px;
-        font-size: 13px;
-        font-weight: 700;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
+        .avatar-img {{
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid rgba(255,255,255,0.9);
+        }}
 
-    .live-dot {
-        width: 8px;
-        height: 8px;
-        background-color: #34d399;
-        border-radius: 50%;
-        animation: blink-dot 1s infinite alternate;
-    }
+        .status-badge {{
+            margin-top: 12px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid #10b981;
+            color: #34d399;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
 
-    @keyframes blink-dot {
-        0% { opacity: 0.3; }
-        100% { opacity: 1; }
-    }
+        .dot {{ width: 7px; height: 7px; background: #34d399; border-radius: 50%; animation: blink 1s infinite alternate; }}
+        @keyframes blink {{ 0% {{ opacity: 0.3; }} 100% {{ opacity: 1; }} }}
 
-    .avatar-speech-box {
-        margin-top: 15px;
-        background: rgba(15, 23, 42, 0.85);
-        border: 1px solid rgba(56, 189, 248, 0.3);
-        padding: 14px 30px;
-        border-radius: 20px;
-        font-size: 15px;
-        color: #e2e8f0;
-        text-align: center;
-        max-width: 700px;
-    }
+        .speech-bubble {{
+            margin-top: 12px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            padding: 12px 20px;
+            border-radius: 16px;
+            font-size: 14px;
+            color: #e2e8f0;
+            text-align: center;
+            max-width: 600px;
+        }}
 
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 12px;
-        background-color: #0b0f19;
-        padding: 12px;
-        border-radius: 16px;
-        border: 1px solid #1e293b;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #111827;
-        border-radius: 12px;
-        color: #94a3b8;
-        font-weight: 600;
-        padding: 12px 24px;
-    }
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #0284c7, #2563eb) !important;
-        color: white !important;
-    }
+        /* Chat Window */
+        .chat-box {{
+            background: #0b0f19;
+            border: 1px solid #1e293b;
+            border-radius: 20px;
+            padding: 20px;
+            height: 350px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: inset 0 4px 15px rgba(0,0,0,0.5);
+        }}
 
-    .stTextInput input, .stTextArea textarea, .stSelectbox select {
-        background-color: #0f172a !important;
-        color: white !important;
-        border-radius: 12px !important;
-        border: 1px solid #334155 !important;
-        padding: 12px !important;
-    }
+        .message {{
+            padding: 12px 18px;
+            border-radius: 14px;
+            max-width: 80%;
+            font-size: 14px;
+            line-height: 1.5;
+        }}
+
+        .user-msg {{ background: #0284c7; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }}
+        .ai-msg {{ background: #1e293b; color: #f8fafc; align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid #334155; }}
+
+        .input-area {{
+            display: flex;
+            gap: 10px;
+        }}
+
+        input[type="text"] {{
+            flex: 1;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: white;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 15px;
+            outline: none;
+        }}
+        input[type="text"]:focus {{ border-color: #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,0.3); }}
+
+        button {{
+            background: linear-gradient(135deg, #0284c7, #2563eb);
+            color: white;
+            border: none;
+            padding: 0 25px;
+            border-radius: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }}
+        button:hover {{ opacity: 0.9; transform: scale(1.02); }}
     </style>
-""",
-    unsafe_allow_html=True,
-)
+</head>
+<body>
 
-# ==========================================
-# ⚡ SMART DYNAMIC MODEL DISCOVERY (Auto-Detects Working Model)
-# ==========================================
-api_ready = False
-model = None
-
-try:
-  if "GEMINI_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-  else:
-    st.sidebar.title("⚙️ System Config")
-    k_input = st.sidebar.text_input("Enter Gemini API Key", type="password")
-    if k_input:
-      genai.configure(api_key=k_input)
-
-  # ऑटोमैटिकली उपलब्ध मॉडल ढूंढें जो generateContent सपोर्ट करते हैं
-  for m in genai.list_models():
-    if "generateContent" in m.supported_generation_methods:
-      model = genai.GenerativeModel(m.name)
-      api_ready = True
-      break
-
-  # अगर लिस्टिंग से न मिले, तो सुरक्षित फॉלबैक ट्राई करें
-  if not model:
-    for fallback_name in ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]:
-      try:
-        model = genai.GenerativeModel(fallback_name)
-        api_ready = True
-        break
-      except:
-        continue
-
-  if not model:
-    api_ready = False
-
-except Exception as e:
-  api_ready = False
-
-# ==========================================
-# 👩‍💼 CINEMATIC HUMAN AVATAR HERO HEADER
-# ==========================================
-st.markdown(
-    """
-    <div class="avatar-hero-container">
-        <div class="neural-face-wrapper">
-            <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80" class="anchor-avatar-img" alt="Human AI Manager">
+    <div class="container">
+        <!-- Cinematic Hero -->
+        <div class="avatar-hero">
+            <div class="neural-face" id="neuralFace">
+                <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80" class="avatar-img" alt="AI Manager">
+            </div>
+            <div class="status-badge">
+                <div class="dot"></div> ULTRA-FAST NEURAL EXECUTIVE ACTIVE
+            </div>
+            <div class="speech-bubble" id="speechText">
+                "नमस्ते बॉस! बोलिए, आज आपके लिए क्या किया जाए?"
+            </div>
         </div>
-        <div class="neural-badge">
-            <div class="live-dot"></div> NEURAL EXECUTIVE AVATAR: ONLINE & ACTIVE
+
+        <!-- Chat Interface -->
+        <div class="chat-box" id="chatBox">
+            <div class="message ai-msg">नमस्ते! मैं आपकी ऑटोनॉमस एआई मैनेजर हूँ। आप मुझसे कुछ भी पूछ सकते हैं, जवाब बिल्कुल तुरंत मिलेगा।</div>
         </div>
-        <div class="avatar-speech-box">
-            "नमस्ते बॉस! मैं आपका ऑटोनॉमस एआई मैनेजर हूँ। आपकी सोशल मीडिया ग्रोथ, ट्रेंड रिसर्च, और म्यूजिक मैनेजमेंट पूरी तरह से संभाल रही हूँ। बताइए, आज क्या करना है?"
+
+        <!-- Input Box -->
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="यहाँ अपना संदेश या कमांड लिखें (जैसे: हेलो)..." onkeydown="if(event.key === 'KeyE' || event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()">भेजें 🚀</button>
         </div>
     </div>
-""",
-    unsafe_allow_html=True,
-)
 
-# ==========================================
-# 🗂️ MODULE TABS
-# ==========================================
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    [
-        "💬 Executive Voice & Chat",
-        "🔥 Viral Trend & Reel Hunter",
-        "🎵 Audio & Music Maestro",
-        "📱 Social Media Command",
-        "🏷️ SEO & Viral Hashtags",
-    ]
-)
+    <script>
+        const apiKey = "{api_key}";
 
-# --- TAB 1: EXECUTIVE CHAT ---
-with tab1:
-  st.subheader("💬 Super-Fast Neural Chat with Executive Agent")
-  if "chat_messages" not in st.session_state:
-    st.session_state.chat_messages = []
+        async function sendMessage() {{
+            const inputField = document.getElementById("userInput");
+            const chatBox = document.getElementById("chatBox");
+            const speechText = document.getElementById("speechText");
+            const neuralFace = document.getElementById("neuralFace");
+            
+            const text = inputField.value.trim();
+            if(!text) return;
 
-  for message in st.session_state.chat_messages:
-    with st.chat_message(message["role"]):
-      st.markdown(message["content"])
+            if(!apiKey) {{
+                alert("कृपया पहले साइडबार में अपनी Gemini API Key दर्ज करें!");
+                return;
+            }}
 
-  if user_input := st.chat_input("एजेंट से कुछ भी कहें (जैसे: हेलो, कैसे हो?)..."):
-    st.session_state.chat_messages.append(
-        {"role": "user", "content": user_input}
-    )
-    with st.chat_message("user"):
-      st.markdown(user_input)
+            // Append User Message
+            chatBox.innerHTML += `<div class="message user-msg">${{text}}</div>`;
+            inputField.value = "";
+            chatBox.scrollTop = chatBox.scrollHeight;
 
-    with st.chat_message("assistant"):
-      if not api_ready or model is None:
-        reply = "⚠️ कृपया `.streamlit/secrets.toml` में या साइडबार में अपनी सही Gemini API Key सेट करें।"
-      else:
-        try:
-          with st.spinner("⚡ AI Agent responding..."):
-            sys_prompt = (
-                "You are an elite, professional, human-like virtual executive"
-                " manager. Reply quickly, smartly, and conversationally in"
-                " natural Hinglish/Hindi."
-            )
-            response = model.generate_content(
-                f"{sys_prompt}\nUser: {user_input}"
-            )
-            reply = response.text
-        except Exception as e:
-          reply = (
-              f"⚠️ **API Error:** {str(e)}<br>कृपया जाँच करें कि आपकी API Key"
-              " सही है या नहीं।"
-          )
+            // Show Thinking state
+            speechText.innerText = "⚡ सोचने और प्रोसेस करने में एक सेकंड...";
+            neuralFace.style.boxShadow = "0 0 60px #eab308"; // Yellow glow while thinking
 
-      st.markdown(reply, unsafe_allow_html=True)
-      st.session_state.chat_messages.append(
-          {"role": "assistant", "content": reply}
-      )
+            try {{
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${{apiKey}}`, {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{
+                        contents: [{{
+                            parts: [{{ text: "You are an elite, human-like virtual executive manager. Reply instantly, smartly, and conversationally in natural Hinglish/Hindi. User: " + text }}]
+                        }}]
+                    }})
+                }});
 
-# --- TAB 2: TREND & REEL GENERATOR ---
-with tab2:
-  st.subheader("🔥 Viral Trend Hunter & Reel Idea Engine")
-  niche_choice = st.selectbox(
-      "अपनी निच (Niche) चुनें:",
-      [
-          "Tech & Artificial Intelligence",
-          "Entertainment & Comedy",
-          "Business & Startup Strategy",
-          "Lifestyle & Daily Vlogs",
-          "Gaming & Streaming",
-      ],
-  )
-  if st.button("🚀 तुरंत ट्रेंड्स और रील्स आइडिया खोजें"):
-    if api_ready and model:
-      with st.spinner("Trend Hunter इंटरनेट स्कैन कर रहा है..."):
-        try:
-          res = model.generate_content(
-              f"As a viral growth expert, give 3 top trending topics, viral"
-              f" hooks, and script framework for: {niche_choice}"
-          )
-          st.success("✅ वायरल ग्रोथ स्ट्रेटेजी तैयार है:")
-          st.markdown(res.text)
-        except Exception as e:
-          st.error(f"Error: {str(e)}")
-    else:
-      st.error("API Key उपलब्ध नहीं है।")
+                const data = await response.json();
+                
+                if(data.candidates && data.candidates[0].content.parts[0].text) {{
+                    const reply = data.candidates[0].content.parts[0].text;
+                    chatBox.innerHTML += `<div class="message ai-msg">${{reply}}</div>`;
+                    speechText.innerText = `"${{reply.substring(0, 90)}}..."`;
+                    neuralFace.style.boxShadow = "0 0 50px rgba(56, 189, 248, 0.8)"; // Back to blue glow
+                }} else {{
+                    chatBox.innerHTML += `<div class="message ai-msg">⚠️ API Error: अमान्य रिस्पॉन्स मिला। कृपया API Key जाँचें।</div>`;
+                    speechText.innerText = "⚠️ कनेक्शन एरर!";
+                }}
+            } catch (error) {{
+                chatBox.innerHTML += `<div class="message ai-msg">⚠️ Network Error: ${{error.message}}</div>`;
+                speechText.innerText = "⚠️ नेटवर्क में समस्या है।";
+            }}
+            
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }}
+    </script>
+</body>
+</html>
+"""
 
-# --- TAB 3: MUSIC & SONG PLAYER ---
-with tab3:
-  st.subheader("🎵 Audio & Music Maestro Agent")
-  song_input = st.text_input("जो गाना या म्यूज़िक सुनना हो उसका नाम लिखें:")
-  if st.button("🎧 गाना तुरंत खोजें"):
-    if song_input:
-      st.success(f"🎵 '{song_input}' के लिए डायरेक्ट लिंक्स तैयार हैं:")
-      encoded_s = song_input.replace(" ", "+")
-      yt_url = f"https://www.youtube.com/results?search_query={encoded_s}"
-      spotify_url = f"https://open.spotify.com/search/{encoded_s}"
+# Render in Streamlit using components.html
+import streamlit.components.v1 as components
 
-      st.markdown(
-          f"""
-            <div style="background: #0f172a; padding: 22px; border-radius: 14px; border: 1px solid #38bdf8; margin-top: 15px;">
-                <p style="margin-bottom: 15px; font-size: 16px; color:#38bdf8;"><b>म्यूज़िक प्लेयर लिंक्स:</b></p>
-                <a href="{yt_url}" target="_blank" style="display: inline-block; background: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 10px; font-weight: bold; margin-right: 15px;">▶ YouTube पर सुनें</a>
-                <a href="{spotify_url}" target="_blank" style="display: inline-block; background: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 10px; font-weight: bold;">🎧 Spotify पर सुनें</a>
-            </div>
-            """,
-          unsafe_allow_html=True,
-      )
-    else:
-      st.error("कृपया गाने का नाम दर्ज करें।")
-
-# --- TAB 4: SOCIAL MEDIA COMMAND ---
-with tab4:
-  st.subheader("📱 Multi-Platform Social Media Manager")
-  platform_sel = st.selectbox(
-      "प्लेटफॉर्म चुनें:",
-      [
-          "YouTube Studio Optimization & Description",
-          "Instagram Reel & Post Caption",
-          "Facebook Page Engagement Manager",
-      ],
-  )
-  post_q = st.text_input("किस टॉपिक या वीडियो के लिए पोस्ट तैयार करनी है?")
-  if st.button("✨ पोस्ट और कैप्शन जनरेट करें"):
-    if api_ready and model and post_q:
-      with st.spinner("Social Manager पोस्ट तैयार कर रहा है..."):
-        try:
-          res = model.generate_content(
-              f"Create a high-engagement viral post and strategy for"
-              f" {platform_sel} about: {post_q}"
-          )
-          st.info(res.text)
-          st.success("✅ सोशल मीडिया पोस्ट तैयार है!")
-        except Exception as e:
-          st.error(f"Error: {str(e)}")
-    else:
-      st.error("कृपया API Key और टॉपिक दर्ज करें।")
-
-# --- TAB 5: VIRAL SEO & HASHTAGS ---
-with tab5:
-  st.subheader("🏷️ SEO & Viral Hashtag Generator")
-  tag_kw = st.text_input("अपने वीडियो का मुख्य कीवर्ड लिखें:")
-  if st.button("🔍 वायरल हैशटैग्स बनाएं"):
-    if api_ready and model and tag_kw:
-      with st.spinner("SEO Agent हैशटैग्स खोज रहा है..."):
-        try:
-          res = model.generate_content(
-              f"Generate 30 top-ranking viral hashtags and SEO keywords for"
-              f" YouTube Shorts and Instagram Reels for: {tag_kw}"
-          )
-          st.success("✅ वायरल हैशटैग्स तैयार हैं:")
-          st.markdown(res.text)
-        except Exception as e:
-          st.error(f"Error: {str(e)}")
-    else:
-      st.error("कृपया कीवर्ड दर्ज करें।")
+components.html(html_code, height=650, scrolling=True)
