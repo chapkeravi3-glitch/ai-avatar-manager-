@@ -1,242 +1,322 @@
+import os
 import google.generativeai as genai
 import streamlit as st
 
 # Page Configuration
 st.set_page_config(
-    page_title="Human-Like AI Avatar Agent",
-    page_icon="🤖",
+    page_title="AI Autonomous Executive Agent & Media Hub",
+    page_icon="👑",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
-# Custom CSS for Premium Gemini/Claude UI & Video Avatar Styling
+# --- ADVANCED CUSTOM CSS FOR PREMIUM CLAUDE/GEMINI LOOK ---
 st.markdown(
     """
     <style>
-    .main { background-color: #131314; color: #e3e3e3; font-family: sans-serif; }
+    .main { background-color: #0e1117; color: #f3f4f6; font-family: 'Inter', sans-serif; }
+    .sidebar .sidebar-content { background-color: #161b22; }
     
-    /* Top Human-Like Avatar Video Box */
-    .avatar-hero-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background: linear-gradient(135deg, #1f2022, #2d2e30);
-        padding: 20px;
+    /* Hero Header */
+    .hero-box {
+        background: linear-gradient(135deg, #1f2937, #111827);
+        padding: 30px;
         border-radius: 20px;
-        border: 2px solid #8ab4f8;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+        border: 1px solid #374151;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        gap: 25px;
         margin-bottom: 25px;
     }
-    .video-frame {
-        width: 100%;
-        max-width: 360px;
-        height: 220px;
-        border-radius: 15px;
-        overflow: hidden;
-        box-shadow: 0 6px 15px rgba(0,0,0,0.5);
-    }
-    .avatar-status {
-        margin-top: 12px;
-        background: #34a853;
-        color: white;
-        padding: 4px 16px;
-        border-radius: 20px;
-        font-size: 14px;
-        font-weight: bold;
+    .avatar-circle {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #3b82f6, #9333ea);
         display: flex;
         align-items: center;
-        gap: 8px;
+        justify-content: center;
+        font-size: 50px;
+        box-shadow: 0 0 25px rgba(59, 130, 246, 0.6);
+        animation: pulse-avatar 2s infinite;
     }
-    .pulse-dot {
-        width: 8px;
-        height: 8px;
-        background-color: white;
-        border-radius: 50%;
-        animation: blink 1s infinite alternate;
-    }
-    @keyframes blink {
-        0% { opacity: 0.3; }
-        100% { opacity: 1; }
-    }
-
-    /* Agent Activity Card */
-    .agent-card {
-        background-color: #1e1f20;
-        border: 1px solid #444746;
-        padding: 15px;
-        border-radius: 12px;
-        margin-bottom: 20px;
+    @keyframes pulse-avatar {
+        0% { transform: scale(0.98); box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+        50% { transform: scale(1.02); box-shadow: 0 0 30px rgba(59, 130, 246, 0.8); }
+        100% { transform: scale(0.98); box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
     }
     
+    /* Agent Status Panel */
+    .agent-panel {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        padding: 18px;
+        border-radius: 15px;
+        margin-bottom: 25px;
+    }
+    .agent-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        border-bottom: 1px solid #21262d;
+    }
+    .agent-row:last-child { border-bottom: none; }
+    .status-badge {
+        background-color: #238636;
+        color: white;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    
+    /* Input Fields Customization */
     .stTextInput input, .stTextArea textarea, .stSelectbox select {
-        background-color: #1e1f20 !important;
+        background-color: #161b22 !important;
         color: white !important;
         border-radius: 8px !important;
-        border: 1px solid #555 !important;
+        border: 1px solid #30363d !important;
     }
     </style>
 """,
     unsafe_allow_html=True,
 )
 
-# ==========================================
-# 🔑 अपनी Gemini API Key यहाँ सीधे लिख दें (ताकि बार-बार डालनी न पड़े)
-# ==========================================
-MY_API_KEY = (  # अपनी असली key यहाँ कोट्स के अंदर पेस्ट कर दें
-    "AIzaSy..."
+# --- SIDEBAR CONFIGURATION ---
+st.sidebar.title("⚙️ System Configuration")
+st.sidebar.markdown(
+    "आपकी वही **Gemini API Key** यहाँ काम करेगी जो आपने वीडियो एडिटर ऐप में"
+    " इस्तेमाल की है।"
 )
 
-if MY_API_KEY and MY_API_KEY != "AIzaSy...":
-  genai.configure(api_key=MY_API_KEY)
+# Check for environment variable or session state
+if "gemini_key" not in st.session_state:
+  st.session_state.gemini_key = os.environ.get("GEMINI_API_KEY", "")
+
+api_key_input = st.sidebar.text_input(
+    "Enter Gemini API Key",
+    value=st.session_state.gemini_key,
+    type="password",
+    help="Use your Google AI Studio API Key",
+)
+
+if api_key_input:
+  st.session_state.gemini_key = api_key_input
+  genai.configure(api_key=st.session_state.gemini_key)
   model = genai.GenerativeModel("gemini-1.5-flash")
+  st.sidebar.success("✅ API Key Configured Successfully!")
 else:
-  st.warning(
-      "⚠️ कृपया कोड के अंदर 'MY_API_KEY' में अपनी असली Gemini API Key डालें।"
-  )
+  st.sidebar.warning("⚠️ कृपया अपनी API Key दर्ज करें।")
 
-# App Title
-st.markdown(
-    "<h1 style='text-align: center; color: white;'>🤖 Real Human-Like AI"
-    " Executive Agent</h1>",
+st.sidebar.markdown("---")
+st.sidebar.subheader("🤖 Sub-Agent Architecture")
+st.sidebar.markdown(
+    """
+- 🔍 **Trend Hunter**: Active (Scanning Web)
+- 📱 **Social Director**: Ready (YT/Insta/FB)
+- 🎵 **Audio Maestro**: Standby (Media Player)
+- 🏷️ **SEO Optimizer**: Active (Hashtags)
+""",
     unsafe_allow_html=True,
 )
-st.markdown(
-    "<p style='text-align: center; color: #9aa0a6;'>आपका पर्सनल वर्चुअल"
-    " ह्यूमन एजेंट जो ट्रेंड्स, गाने, रील्स और सोशल मीडिया मैनेज करेगा।</p>",
-    unsafe_allow_html=True,
-)
 
-# --- 1. REAL HUMAN-LIKE AVATAR SECTION (TOP) ---
-col1, col2, col3 = st.columns([1, 2, 1])
-with col2:
-  st.markdown(
-      """
-        <div class="avatar-hero-container">
-            <div class="video-frame">
-                <!-- Human-like AI Anchor Video Loop -->
-                <video width="100%" height="100%" autoplay loop muted playsinline>
-                    <source src="https://assets.mixkit.co/videos/preview/mixkit-digital-animation-of-a-woman-with-neon-lights-41270-large.mp4" type="video/mp4">
-                    Your browser does not support the video tag.
-                </video>
-            </div>
-            <div class="avatar-status">
-                <div class="pulse-dot"></div> AI Human Avatar Online & Listening
-            </div>
-        </div>
-        """,
-      unsafe_allow_html=True,
-  )
-
-# --- 2. MULTI-AGENT LIVE ACTION BOARD ---
+# --- MAIN HERO HEADER ---
 st.markdown(
     """
-<div class="agent-card">
-    <h3 style="margin-top:0; color:#8ab4f8; font-size:18px;">⚡ Background Autonomous Agents at Work:</h3>
-    <p style="margin:5px 0; font-size:14px; color:#c4c7c5;">🔍 <b>Trend Hunter:</b> Scanning YouTube & Instagram algorithms...</p>
-    <p style="margin:5px 0; font-size:14px; color:#c4c7c5;">📱 <b>Social Manager:</b> Ready to queue posts for YouTube, FB & Insta...</p>
-    <p style="margin:5px 0; font-size:14px; color:#c4c7c5;">🎵 <b>Music Agent:</b> Standby to search & play requested tracks...</p>
+    <div class="hero-box">
+        <div class="avatar-circle">🤖</div>
+        <div>
+            <h1 style="margin:0; font-size:26px; color:#ffffff;">AI Autonomous Executive Avatar & Social Suite</h1>
+            <p style="margin:5px 0 0 0; color:#8b949e;">आपका ऑल-इन-वन डिजिटल ह्यूमन एजेंट जो ट्रेंड्स खोजेगा, रील्स के आइडिया देगा, गाने प्ले करेगा और आपके सोशल मीडिया चैनल्स को मैनेज करेगा।</p>
+        </div>
+    </div>
+""",
+    unsafe_allow_html=True,
+)
+
+# --- LIVE MULTI-AGENT SWARM STATUS BOARD ---
+st.markdown(
+    """
+<div class="agent-panel">
+    <strong style="color: #58a6ff; font-size: 16px;">⚡ Multi-Agent Swarm Live Monitoring:</strong>
+    <div class="agent-row" style="margin-top: 10px;">
+        <span>🔍 <b>Trend & Viral Research Agent:</b> Analyzing high-view topics across internet</span>
+        <span class="status-badge">ONLINE</span>
+    </div>
+    <div class="agent-row">
+        <span>📱 <b>Social Media Manager Agent:</b> Managing YouTube, Instagram & Facebook queues</span>
+        <span class="status-badge">READY</span>
+    </div>
+    <div class="agent-row">
+        <span>🎵 <b>Music & Audio Player Agent:</b> Handling song search and direct streaming</span>
+        <span class="status-badge">STANDBY</span>
+    </div>
 </div>
 """,
     unsafe_allow_html=True,
 )
 
-# --- 3. TABS FOR ALL FEATURES ---
-tab1, tab2, tab3, tab4 = st.tabs(
+# --- TABS FOR MODULES ---
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
     [
-        "💬 Voice & Text Chat",
-        "🔥 Viral Trends & Reel Ideas",
-        "🎵 Song Search & Player",
-        "📱 Social Media & Hashtags",
+        "💬 Executive Chat",
+        "🔥 Trend & Reel Generator",
+        "🎵 Music & Song Player",
+        "📱 Social Media Manager",
+        "🏷️ Viral SEO & Hashtags",
     ]
 )
 
-# TAB 1: CHAT WITH AGENT
+# TAB 1: EXECUTIVE CHAT
 with tab1:
-  st.subheader("💬 Talk with your Human-Like AI Agent")
-  if "messages" not in st.session_state:
-    st.session_state.messages = []
+  st.subheader("💬 Chat with your AI Executive Agent")
+  if "chat_messages" not in st.session_state:
+    st.session_state.chat_messages = []
 
-  for message in st.session_state.messages:
+  for message in st.session_state.chat_messages:
     with st.chat_message(message["role"]):
       st.markdown(message["content"])
 
-  if prompt := st.chat_input(
-      "एजेंट से कहें (जैसे: आज क्या ट्रेंड कर रहा है? या गाना बजाओ)..."
+  if user_input := st.chat_input(
+      "एजेंट को आदेश दें (जैसे: आज ट्रेंडिंग क्या है? या कोई आइडिया दो)..."
   ):
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.session_state.chat_messages.append(
+        {"role": "user", "content": user_input}
+    )
     with st.chat_message("user"):
-      st.markdown(prompt)
+      st.markdown(user_input)
 
     with st.chat_message("assistant"):
-      if not MY_API_KEY or MY_API_KEY == "AIzaSy...":
-        resp = "कृपया कोड में अपनी Gemini API Key सेट करें।"
+      if not st.session_state.get("gemini_key"):
+        reply = "⚠️ कृपया पहले साइडबार में अपनी Gemini API Key दर्ज करें।"
       else:
         try:
-          with st.spinner("AI Agent processing..."):
-            res = model.generate_content(
-                "You are an advanced human-like AI manager. Reply helpfully"
-                f" in Hinglish/Hindi: {prompt}"
+          with st.spinner("Executive Agent is processing..."):
+            system_instruction = (
+                "You are an advanced human-like AI manager agent. You help the"
+                " user manage social media, find trends, suggest music, and"
+                " grow online. Answer smartly and professionally in"
+                " Hinglish/Hindi."
             )
-            resp = res.text
+            response = model.generate_content(
+                f"{system_instruction}\nUser Command: {user_input}"
+            )
+            reply = response.text
         except Exception as e:
-          resp = f"Error: {e}"
-      st.markdown(resp)
-      st.session_state.messages.append({"role": "assistant", "content": resp})
+          reply = f"Error communicating with Gemini: {str(e)}"
+
+      st.markdown(reply)
+      st.session_state.chat_messages.append(
+          {"role": "assistant", "content": reply}
+      )
 
 # TAB 2: TRENDS & REEL IDEAS
 with tab2:
-  st.subheader("🔥 Viral Trend & Reel Idea Generator")
-  niche_input = st.text_input(
-      "अपनी निच (Niche) लिखें (जैसे: Tech, Comedy, Finance, Vlogs)"
+  st.subheader("🔥 Viral Trend Hunter & Reel Idea Generator")
+  niche_category = st.selectbox(
+      "अपनी कंटेंट कैटेगरी चुनें:",
+      [
+          "Tech & Artificial Intelligence",
+          "Entertainment & Comedy",
+          "Business & Finance",
+          "Lifestyle & Daily Vlogs",
+          "Gaming & Streaming",
+      ],
   )
-  if st.button("ट्रेंडिंग टॉपिक्स खोजें"):
-    if MY_API_KEY and niche_input:
-      with st.spinner("Trend Agent इंटरनेट खंगाल रहा है..."):
-        res = model.generate_content(
-            f"As a viral growth expert, give 3 top trending topics, hooks, and"
-            f" strategy for: {niche_input}"
+
+  if st.button("ट्रेंडिंग टॉपिक्स और रील्स आइडिया खोजें"):
+    if st.session_state.get("gemini_key"):
+      with st.spinner("Trend Hunter Agent इंटरनेट खंगाल रहा है..."):
+        prompt_trend = (
+            f"Act as a professional viral growth expert. For the niche"
+            f" '{niche_category}', provide: 1. Top 3 current high-view trending"
+            " concepts, 2. Catchy Reel/Shorts hooks, 3. Viral execution"
+            " strategy in Hinglish."
         )
-        st.success("✅ आपके लिए वायरल आइडिया:")
+        res = model.generate_content(prompt_trend)
+        st.success("✅ आपके लिए वायरल ट्रेंडिंग टॉपिक्स और आइडिया तैयार हैं:")
         st.markdown(res.text)
     else:
-      st.error("कृपया निच (Niche) लिखें और API Key सेट करें।")
+      st.warning("कृपया पहले अपनी API Key सेट करें।")
 
-# TAB 3: SONG & MUSIC PLAYER
+# TAB 3: MUSIC & SONG PLAYER
 with tab3:
-  st.subheader("🎵 Dynamic Song Search & Player")
-  song_q = st.text_input(
-      "जो गाना सुनना है उसका नाम लिखें (जैसे: Lofi songs या कोई भी गाना)"
+  st.subheader("🎵 Dynamic Music & Song Player Agent")
+  st.markdown(
+      "जो भी गाना या म्यूज़िक सुनना हो उसका नाम लिखें, एजेंट तुरंत आपके लिए"
+      " ढूंढ कर लिंक तैयार कर देगा:"
   )
-  if st.button("गाना चलाएं"):
-    if song_q:
-      st.success(f"🎵 Music Agent ने '{song_q}' ढूंढ लिया है:")
-      enc_q = song_q.replace(" ", "+")
+
+  song_query = st.text_input(
+      "गाने या कलाकार का नाम लिखें (जैसे: Lofi chill beats या Kesariya song)"
+  )
+  if st.button("गाना खोजें और प्ले करें"):
+    if song_query:
+      st.success(
+          f"🎵 Audio Agent ने '{song_query}' के लिए डायरेक्ट लिंक्स ढूंढ लिए"
+          " हैं:"
+      )
+      encoded_q = song_query.replace(" ", "+")
+      yt_url = f"https://www.youtube.com/results?search_query={encoded_q}"
+      spotify_url = f"https://open.spotify.com/search/{encoded_q}"
+
       st.markdown(
           f"""
-            <iframe width="100%" height="315" src="https://www.youtube.com/embed?listType=search&list={enc_q}" 
-            title="Music Player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen>
-            </iframe>
+            <div style="background: #161b22; padding: 20px; border-radius: 12px; border: 1px solid #30363d; margin-top: 15px;">
+                <p style="margin-bottom: 15px; font-size: 16px;"><b>चुनें आप कहाँ सुनना चाहते हैं:</b></p>
+                <a href="{yt_url}" target="_blank" style="display: inline-block; background: #ff0000; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin-right: 15px; box-shadow: 0 4px 10px rgba(255,0,0,0.3);">▶ YouTube पर सुनें</a>
+                <a href="{spotify_url}" target="_blank" style="display: inline-block; background: #1db954; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; box-shadow: 0 4px 10px rgba(29,185,84,0.3);">🎧 Spotify पर सुनें</a>
+            </div>
             """,
           unsafe_allow_html=True,
       )
     else:
       st.error("कृपया गाने का नाम दर्ज करें।")
 
-# TAB 4: SOCIAL MEDIA & HASHTAGS
+# TAB 4: SOCIAL MEDIA MANAGER
 with tab4:
-  st.subheader("📱 Social Media Manager & Hashtag Generator")
-  sm_topic = st.text_input(
-      "किस टॉपिक पर पोस्ट या रील्स के लिए हैशटैग चाहिए?"
+  st.subheader("📱 Multi-Platform Social Media Manager")
+  platform = st.selectbox(
+      "प्लेटफॉर्म चुनें:",
+      [
+          "YouTube Studio Strategy & Description",
+          "Instagram Reel & Post Optimizer",
+          "Facebook Page Engagement Manager",
+          "Twitter / X Thread Creator",
+      ],
   )
-  if st.button("कंटेंट और हैशटैग बनाएं"):
-    if MY_API_KEY and sm_topic:
-      with st.spinner("Social Manager Agent काम कर रहा है..."):
-        res = model.generate_content(
-            f"Generate an Instagram/YouTube caption, strategy, and 30 viral"
-            f" hashtags for: {sm_topic}"
+  post_topic = st.text_input("किस टॉपिक पर पोस्ट या वीडियो तैयार करना है?")
+
+  if st.button("कंटेंट और शेड्यूलिंग स्ट्रैटेजी बनाएं"):
+    if st.session_state.get("gemini_key") and post_topic:
+      with st.spinner("Social Manager Agent पोस्ट तैयार कर रहा है..."):
+        prompt_social = (
+            f"Create an expert viral post/script, caption, and schedule"
+            f" strategy for {platform} about: {post_topic}"
         )
+        res = model.generate_content(prompt_social)
         st.info(res.text)
-        st.success("✅ कंटेंट और हैशटैग तैयार हैं!")
+        st.success(f"✅ {platform} के लिए सोशल मीडिया कंटेंट तैयार है!")
     else:
-      st.error("कृपया टॉपिक दर्ज करें।")
+      st.warning("कृपया API Key और टॉपिक दोनों दर्ज करें।")
+
+# TAB 5: VIRAL SEO & HASHTAGS
+with tab5:
+  st.subheader("🏷️ SEO & Viral Hashtag Generator")
+  hashtag_keyword = st.text_input("अपने वीडियो या पोस्ट का मुख्य कीवर्ड लिखें:")
+
+  if st.button("वायरल हैशटैग्स जनरेट करें"):
+    if st.session_state.get("gemini_key") and hashtag_keyword:
+      with st.spinner("SEO Agent उच्च रैंकिंग वाले हैशटैग्स खोज रहा है..."):
+        prompt_hash = (
+            f"Generate 30 high-ranking viral hashtags and SEO keywords for"
+            f" YouTube Shorts and Instagram Reels for the topic:"
+            f" {hashtag_keyword}"
+        )
+        res = model.generate_content(prompt_hash)
+        st.success("✅ आपके लिए वायरल हैशटैग्स तैयार हैं:")
+        st.markdown(res.text)
+    else:
+      st.warning("कृपया कीवर्ड दर्ज करें।")
