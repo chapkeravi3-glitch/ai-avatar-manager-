@@ -102,27 +102,19 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- GEMINI API CONFIGURATION (Fixed Model Name) ---
+# --- GEMINI API CONFIGURATION ---
 api_ready = False
 if "GEMINI_API_KEY" in st.secrets:
   genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-  try:
-    model = genai.GenerativeModel("models/gemini-1.5-flash")
-    api_ready = True
-  except:
-    model = genai.GenerativeModel("gemini-pro")
-    api_ready = True
+  model = genai.GenerativeModel("gemini-1.5-flash")
+  api_ready = True
 else:
   st.sidebar.title("⚙️ Config")
   k_input = st.sidebar.text_input("Gemini API Key", type="password")
   if k_input:
     genai.configure(api_key=k_input)
-    try:
-      model = genai.GenerativeModel("models/gemini-1.5-flash")
-      api_ready = True
-    except:
-      model = genai.GenerativeModel("gemini-pro")
-      api_ready = True
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    api_ready = True
 
 # ==========================================
 # 👤 FULL-SCREEN HUMAN-LIKE AVATAR HERO DISPLAY
