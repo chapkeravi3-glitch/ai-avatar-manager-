@@ -102,7 +102,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- GEMINI API CONFIGURATION (Universal Fallback for Model Discovery) ---
+# --- GEMINI API CONFIGURATION (Updated to gemini-3.8-flash with auto-fallback) ---
 api_ready = False
 model = None
 
@@ -115,19 +115,17 @@ try:
     if k_input:
       genai.configure(api_key=k_input)
 
-  # Automatically pick an available working model
-  for m in genai.list_models():
-    if "generateContent" in m.supported_generation_methods:
-      model = genai.GenerativeModel(m.name)
-      api_ready = True
-      break
+  # First try the newly recommended model
+  model = genai.GenerativeModel("gemini-3.8-flash")
+  api_ready = True
 except Exception as e:
-  # Ultimate fallback if listing fails
+  # Fallback: automatically list available models if the primary fails
   try:
-    if "GEMINI_API_KEY" in st.secrets:
-      genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    api_ready = True
+    for m in genai.list_models():
+      if "generateContent" in m.supported_generation_methods:
+        model = genai.GenerativeModel(m.name)
+        api_ready = True
+        break
   except Exception as ex:
     api_ready = False
 
