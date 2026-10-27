@@ -106,21 +106,20 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- GEMINI API CONFIGURATION (Using secrets.toml automatically) ---
+# --- GEMINI API CONFIGURATION (Using secrets.toml or Sidebar Fallback) ---
+api_ready = False
 if "GEMINI_API_KEY" in st.secrets:
   genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-  model = genai.GenerativeModel("gemini-1.5-flash")
+  # Using standard stable model to avoid 404 errors
+  model = genai.GenerativeModel("gemini-pro")
   api_ready = True
 else:
-  # Fallback to sidebar if secrets not found
   st.sidebar.title("⚙️ Config")
   k_input = st.sidebar.text_input("Gemini API Key", type="password")
   if k_input:
     genai.configure(api_key=k_input)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-pro")
     api_ready = True
-  else:
-    api_ready = False
 
 # ==========================================
 # 👤 FULL-SCREEN HUMAN-LIKE AVATAR HERO DISPLAY
@@ -171,7 +170,7 @@ with tab1:
 
     with st.chat_message("assistant"):
       if not api_ready:
-        reply = "⚠️ कृपया `.streamlit/secrets.toml` में अपनी Gemini API Key सेट करें।"
+        reply = "⚠️ कृपया `.streamlit/secrets.toml` में या साइडबार में अपनी Gemini API Key सेट करें।"
       else:
         try:
           with st.spinner("Agent is processing your command..."):
