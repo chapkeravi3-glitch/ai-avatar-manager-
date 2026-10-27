@@ -14,6 +14,7 @@ import asyncio
 import base64
 import hashlib
 import json
+import os
 import re
 import time
 import urllib.parse
@@ -315,6 +316,7 @@ function setSpeak(v){ speaking=v; $('st').textContent = v ? '🗣 बोल र�
 if(thinking) $('st').textContent='🤔 सोच रहा हूँ…';
 const img=new Image();
 img.onload=()=>{ H=Math.min(640,Math.round(W*img.height/img.width)); cv.width=W; cv.height=H; off.width=W; off.height=H; frame(); };
+img.onerror=()=>{ $('st').textContent='⚠️ फोटो लोड नहीं हुई, दूसरी JPG फोटो डालें'; };
 img.src=F.src;
 function frame(){
   t+=0.016;
@@ -370,16 +372,62 @@ if(P.text){ $('btn').style.display='inline-block'; $('btn').onclick=go; setTimeo
 """
 
 
-def render_avatar(slot, gender, text="", audio_b64=None, mode="idle"):
+EXTRA_TPL = """
+<style>
+#mic{margin-top:8px;width:210px;background:#16a34a;color:#fff;border:0;border-radius:24px;padding:12px;font-size:16px;font-weight:700}
+.act{display:block;width:186px;margin:8px auto 0;background:#f59e0b;color:#111;text-decoration:none;border-radius:24px;padding:12px;font-size:16px;font-weight:700}
+</style>
+<button id="mic">🎤 बोलिए</button>
+<div id="acts"></div>
+<script>
+(function(){
+  const L=__LINKS__;
+  const ANDROID=/Android/i.test(navigator.userAgent);
+  function target(l){
+    if(!ANDROID||!l.pkg) return l.url;
+    const x=new URL(l.url);
+    return 'intent://'+x.host+x.pathname+x.search+x.hash+'#Intent;scheme='+x.protocol.replace(':','')+';package='+l.pkg+';S.browser_fallback_url='+encodeURIComponent(l.url)+';end';
+  }
+  const box=document.getElementById('acts');
+  L.forEach(l=>{ const a=document.createElement('a'); a.className='act'; a.textContent=l.label; a.href=target(l); a.target='_blank'; a.rel='noopener'; box.appendChild(a); });
+  if(L.length===1){ try{ const d=window.parent.document, a=d.createElement('a'); a.href=target(L[0]); a.target='_blank'; d.body.appendChild(a); a.click(); a.remove(); }catch(e){} }
+
+  const b=document.getElementById('mic');
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ b.textContent='🎤 Chrome ब्राउज़र में खोलें'; b.disabled=true; return; }
+  const rec=new SR(); rec.lang='hi-IN'; rec.interimResults=false; rec.maxAlternatives=1;
+  let on=false;
+  b.onclick=()=>{ if(on){ rec.stop(); return; } try{ speechSynthesis.cancel(); }catch(e){} try{ rec.start(); }catch(e){} };
+  rec.onstart=()=>{ on=true; b.textContent='🔴 सुन रहा हूँ… बोलिए'; };
+  rec.onend=()=>{ on=false; if(b.textContent.indexOf('सुन रहा')>=0) b.textContent='🎤 बोलिए'; };
+  rec.onerror=(e)=>{ on=false; b.textContent='🎤 माइक की अनुमति दें ('+e.error+')'; };
+  rec.onresult=(e)=>{
+    const text=e.results[0][0].transcript; b.textContent='✅ '+text;
+    try{
+      const d=window.parent.document;
+      const ta=d.querySelector('textarea[data-testid="stChatInputTextArea"]')||d.querySelector('[data-testid="stChatInput"] textarea');
+      const setter=Object.getOwnPropertyDescriptor(window.parent.HTMLTextAreaElement.prototype,'value').set;
+      setter.call(ta,text); ta.dispatchEvent(new window.parent.Event('input',{bubbles:true}));
+      setTimeout(()=>{ const s=d.querySelector('[data-testid="stChatInputSubmitButton"]'); if(s) s.click(); },200);
+    }catch(err){ b.textContent='चैट बॉक्स में खुद टाइप करें: '+text; }
+  };
+})();
+</script>
+"""
+
+
+def render_avatar(slot, gender, text="", audio_b64=None, mode="idle", links=None):
+    links = links or []
     payload = json.dumps({"text": text, "audio": audio_b64, "mode": mode}).replace("</", "<\\/")
     if PHOTO:
         html = PHOTO_TPL.replace("__PAYLOAD__", payload).replace("__PHOTO__", json.dumps(PHOTO))
-        height = 470
+        height = 560
     else:
         html = AVATAR_TPL.replace("__G__", "f" if gender == "महिला" else "m").replace("__PAYLOAD__", payload)
-        height = 335
+        height = 420
+    html += EXTRA_TPL.replace("__LINKS__", json.dumps(links).replace("</", "<\\/"))
     with slot.container():
-        components.html(html, height=height)
+        components.html(html, height=height + 62 * len(links))
 
 
 # ============================================================
@@ -418,8 +466,26 @@ FILLER = {
 }
 
 
+PKG = {
+    "YouTube": "com.google.android.youtube", "Spotify": "com.spotify.music", "JioSaavn": "com.jio.media.jiobeats",
+    "Instagram": "com.instagram.android", "WhatsApp": "com.whatsapp", "Facebook": "com.facebook.katana",
+    "X (Twitter)": "com.twitter.android", "Telegram": "org.telegram.messenger", "Snapchat": "com.snapchat.android",
+    "LinkedIn": "com.linkedin.android", "Google Maps": "com.google.android.apps.maps", "Gmail": "com.google.android.gm",
+    "Google": "com.google.android.googlequicksearchbox", "Play Store": "com.android.vending",
+    "Amazon": "in.amazon.mShop.android.shopping", "Flipkart": "com.flipkart.android",
+}
+JOIN = (
+    ("यू ट्यूब", "यूट्यूब"), ("you tube", "youtube"), ("face book", "facebook"), ("फेस बुक", "फेसबुक"),
+    ("insta gram", "instagram"), ("whats app", "whatsapp"), ("व्हाट्स एप", "व्हाट्सएप"),
+    ("इंस्टा ग्राम", "इंस्टाग्राम"), ("प्ले स्टोर", "प्लेस्टोर"), ("गूगल मैप", "मैप"),
+)
+
+
 def tokens_of(text):
-    return [w for w in re.split(r"[\s,।.!?]+", text.lower()) if w]
+    low = text.lower()
+    for a, b in JOIN:
+        low = low.replace(a, b)
+    return [w for w in re.split(r"[\s,।.!?]+", low) if w]
 
 
 def handle_command(text, default_music):
@@ -428,34 +494,36 @@ def handle_command(text, default_music):
     if not any(any(v in w for v in VERB_STEMS) for w in toks):
         return None
 
-    app_found = None
-    for name, (aliases, _, _) in APPS.items():
-        if any(w in aliases for w in toks):
-            app_found = name
-            break
-
+    found = [name for name, (al, _, _) in APPS.items() if any(w in al for w in toks)]
     is_music = any(w in MUSIC_WORDS for w in toks)
     blocked = any(w.startswith(b) for w in toks for b in BLOCK)
-    if blocked and not app_found:
-        return {"msg": "माफ़ कीजिए, मैं बैंकिंग और पेमेंट वाले ऐप नहीं खोलता। आपके पैसों की सुरक्षा के लिए इन्हें आप खुद ही खोलिए।"}
-    if not app_found and not is_music:
+    note = " बैंकिंग और पेमेंट वाले ऐप मैं नहीं खोलता।" if blocked else ""
+    if blocked and not found:
+        return {"msg": "माफ़ कीजिए, मैं बैंकिंग और पेमेंट वाले ऐप नहीं खोलता। आपके पैसों की सुरक्षा के लिए इन्हें आप खुद ही खोलिए।", "links": []}
+    if not found and not is_music:
         return None
-    if not app_found:
-        app_found = default_music
+    if not found:
+        found = [default_music]
 
-    aliases = APPS[app_found][0]
-    q_toks = [
+    all_alias = {a for n in found for a in APPS[n][0]}
+    q = " ".join(
         w for w in toks
-        if w not in aliases and w not in FILLER and not any(v in w for v in VERB_STEMS)
-    ]
-    q = " ".join(q_toks).strip()
-    _, home, search = APPS[app_found]
-    url = search.format(q=urllib.parse.quote_plus(q)) if q else home
+        if w not in all_alias and w not in FILLER and not any(v in w for v in VERB_STEMS)
+        and not any(w.startswith(x) for x in BLOCK)
+    ).strip()
+    if len(found) > 1:
+        q = ""
+    links = []
+    for n in found:
+        _, home, search = APPS[n]
+        url = search.format(q=urllib.parse.quote_plus(q)) if q else home
+        links.append({"label": f"▶ {n} खोलें", "url": url, "pkg": PKG.get(n, "")})
+    names = " और ".join(found)
     if q:
-        msg = f"ठीक है, {app_found} पर \"{q}\" लगा रहा हूँ। नीचे वाला बटन दबाइए।"
+        msg = f"ठीक है, {names} पर {q} लगा रहा हूँ। स्क्रीन पर नारंगी बटन दबाइए।"
     else:
-        msg = f"ठीक है, {app_found} खोल रहा हूँ। नीचे वाला बटन दबाइए।"
-    return {"msg": msg, "label": f"▶ {app_found} खोलें", "url": url}
+        msg = f"ठीक है, {names} खोल रहा हूँ। स्क्रीन पर नारंगी बटन दबाइए।"
+    return {"msg": msg + note, "links": links}
 
 
 # ============================================================
@@ -466,7 +534,7 @@ if "messages" not in st.session_state:
 if "last_audio" not in st.session_state:
     st.session_state.last_audio = ""
 
-with st.expander("⚙️ सेटिंग (आवाज़, चेहरा)"):
+with st.expander("⚙️ सेटिंग (आवाज़, चेहरा)", expanded=True):
     voice_mode = st.radio("आवाज़", ["⚡ तेज़ (फोन की आवाज़)", "🎙 ज़्यादा इंसानी (थोड़ा धीमा)"], index=0)
     gender = st.radio("चेहरा और आवाज़", ["पुरुष", "महिला"], horizontal=True)
     default_music = st.selectbox("गाना चलाने के लिए डिफ़ॉल्ट ऐप", ["YouTube", "Spotify", "JioSaavn"])
@@ -477,12 +545,13 @@ with st.expander("⚙️ सेटिंग (आवाज़, चेहरा)")
     show_guide = st.checkbox("लाल निशान दिखाओ (मुँह पर ठीक बिठाने के लिए)")
 
 EDGE_VOICE = "hi-IN-MadhurNeural" if gender == "पुरुष" else "hi-IN-SwaraNeural"
+FACE_FILE = next((p for p in ("face.jpg", "face.jpeg", "face.png") if os.path.exists(p)), None)
 PHOTO = None
-if up is not None:
+if up is not None or FACE_FILE:
     try:
         import io
         from PIL import Image
-        im = Image.open(up).convert("RGB")
+        im = Image.open(up if up is not None else FACE_FILE).convert("RGB")
         im.thumbnail((640, 800))
         buf = io.BytesIO()
         im.save(buf, "JPEG", quality=85)
@@ -490,6 +559,7 @@ if up is not None:
                  "mx": mx / 100, "my": my / 100, "mw": mw / 100, "guide": show_guide}
     except Exception:
         PHOTO = None
+        st.warning("फोटो पढ़ नहीं पाया। JPG या PNG की दूसरी फोटो डालिए।")
 
 st.markdown("<h3 style='text-align:center;margin:0'>👑 Executive AI Agent</h3>", unsafe_allow_html=True)
 avatar_slot = st.empty()
@@ -505,17 +575,16 @@ tab_chat, tab_music, tab_social, tab_trend = st.tabs(
 with tab_chat:
     audio_val = None
     if hasattr(st, "audio_input"):
-        audio_val = st.audio_input("🎤 बोलकर पूछें (रिकॉर्ड दबाएँ, बात करें, रोकें)")
-    else:
-        st.caption("आवाज़ से पूछने के लिए Streamlit अपडेट करें: pip install -U streamlit")
+        with st.expander("🎙 बैकअप: रिकॉर्ड करके पूछें (सिर्फ़ सवाल-जवाब, ऐप खोलने के लिए ऊपर हरा 🎤 बटन दबाएँ)"):
+            audio_val = st.audio_input("रिकॉर्ड दबाएँ, बात करें, रोकें")
 
     typed = st.chat_input("यहाँ टाइप करें… (जैसे: यूट्यूब पर अरिजीत के गाने चलाओ)")
 
     for i, m in enumerate(st.session_state.messages):
         with st.chat_message(m["role"]):
             st.markdown(m["content"])
-            if m.get("url"):
-                st.link_button(m["label"], m["url"], key=f"old{i}")
+            for j, l in enumerate(m.get("links", [])):
+                st.link_button(l["label"], l["url"], key=f"old{i}_{j}")
 
     user_text, audio_bytes, audio_mime = None, None, None
     if typed:
@@ -538,14 +607,14 @@ with tab_chat:
 
             render_avatar(avatar_slot, gender, mode="think")
             cmd = handle_command(user_text, default_music) if not audio_bytes else None
-            reply, link = "", None
+            reply, links = "", []
             with st.chat_message("assistant"):
                 if cmd:
                     reply = cmd["msg"]
                     st.markdown(reply)
-                    if cmd.get("url"):
-                        link = {"label": cmd["label"], "url": cmd["url"]}
-                        st.link_button(link["label"], link["url"], key=f"new{len(st.session_state.messages)}")
+                    links = cmd.get("links", [])
+                    for j, l in enumerate(links):
+                        st.link_button(l["label"], l["url"], key=f"new{len(st.session_state.messages)}_{j}")
                 else:
                     history = []
                     for m in st.session_state.messages[-9:-1]:
@@ -563,13 +632,13 @@ with tab_chat:
                         reply = f"⚠️ दिक्कत आई: {str(e)[:400]}"
                         st.markdown(reply)
 
-            st.session_state.messages.append({"role": "assistant", "content": reply, **(link or {})})
+            st.session_state.messages.append({"role": "assistant", "content": reply, **({"links": links} if links else {})})
 
             spoken = speech_clean(reply)
             audio_b64 = None
             if spoken and voice_mode.startswith("🎙"):
                 audio_b64 = edge_b64(spoken, EDGE_VOICE)
-            render_avatar(avatar_slot, gender, text=spoken, audio_b64=audio_b64)
+            render_avatar(avatar_slot, gender, text=spoken, audio_b64=audio_b64, links=links)
 
     if st.session_state.messages and st.button("🗑 चैट साफ़ करें"):
         st.session_state.messages = []
