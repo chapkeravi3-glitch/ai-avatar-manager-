@@ -2,7 +2,7 @@ import os
 import google.generativeai as genai
 import streamlit as st
 
-# Page Configuration (Wide mode for full immersion)
+# Page Configuration
 st.set_page_config(
     page_title="Human-Like AI Avatar Executive",
     page_icon="👑",
@@ -18,7 +18,6 @@ st.markdown(
     <style>
     .main { background-color: #090a0f; color: #ffffff; font-family: 'Inter', sans-serif; }
     
-    /* Fullscreen Cinematic Avatar Showcase */
     .avatar-hero-fullscreen {
         position: relative;
         width: 100%;
@@ -36,7 +35,6 @@ st.markdown(
         overflow: hidden;
     }
     
-    /* Glowing Human Face Ring */
     .human-face-glow {
         width: 160px;
         height: 160px;
@@ -74,7 +72,6 @@ st.markdown(
         letter-spacing: 0.5px;
     }
 
-    /* Modern Tabs Customization */
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px;
         background-color: #12131a;
@@ -94,7 +91,6 @@ st.markdown(
         color: white !important;
     }
 
-    /* Inputs Styling */
     .stTextInput input, .stTextArea textarea, .stSelectbox select {
         background-color: #12131a !important;
         color: white !important;
@@ -106,20 +102,27 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- GEMINI API CONFIGURATION (Using secrets.toml or Sidebar Fallback) ---
+# --- GEMINI API CONFIGURATION (Fixed Model Name) ---
 api_ready = False
 if "GEMINI_API_KEY" in st.secrets:
   genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-  # Using standard stable model to avoid 404 errors
-  model = genai.GenerativeModel("gemini-pro")
-  api_ready = True
+  try:
+    model = genai.GenerativeModel("models/gemini-1.5-flash")
+    api_ready = True
+  except:
+    model = genai.GenerativeModel("gemini-pro")
+    api_ready = True
 else:
   st.sidebar.title("⚙️ Config")
   k_input = st.sidebar.text_input("Gemini API Key", type="password")
   if k_input:
     genai.configure(api_key=k_input)
-    model = genai.GenerativeModel("gemini-pro")
-    api_ready = True
+    try:
+      model = genai.GenerativeModel("models/gemini-1.5-flash")
+      api_ready = True
+    except:
+      model = genai.GenerativeModel("gemini-pro")
+      api_ready = True
 
 # ==========================================
 # 👤 FULL-SCREEN HUMAN-LIKE AVATAR HERO DISPLAY
@@ -139,7 +142,7 @@ st.markdown(
 )
 
 # ==========================================
-# 🗂️ SLIDE & EXPLORE TABS (All Features Organized Cleanly)
+# 🗂️ TABS FOR ALL FEATURES
 # ==========================================
 tab1, tab2, tab3, tab4, tab5 = st.tabs(
     [
@@ -151,7 +154,6 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(
     ]
 )
 
-# TAB 1: EXECUTIVE CHAT
 with tab1:
   st.subheader("💬 Direct Voice & Text Chat with Human Agent")
   if "chat_messages" not in st.session_state:
@@ -191,7 +193,6 @@ with tab1:
           {"role": "assistant", "content": reply}
       )
 
-# TAB 2: TRENDS & REEL IDEAS
 with tab2:
   st.subheader("🔥 Viral Trend Hunter & Reel Idea Generator")
   niche = st.selectbox(
@@ -204,7 +205,6 @@ with tab2:
           "Gaming",
       ],
   )
-
   if st.button("ट्रेंडिंग टॉपिक्स और रील्स आइडिया खोजें"):
     if api_ready:
       with st.spinner("Trend Hunter इंटरनेट खंगाल रहा है..."):
@@ -217,18 +217,15 @@ with tab2:
     else:
       st.warning("API Key सेट नहीं है।")
 
-# TAB 3: MUSIC & SONG PLAYER
 with tab3:
   st.subheader("🎵 Dynamic Music & Song Search")
   song_q = st.text_input("जो गाना सुनना है उसका नाम लिखें:")
-
   if st.button("गाना ढूंढें और प्ले करें"):
     if song_q:
       st.success(f"🎵 आपके लिए '{song_q}' के लिंक्स तैयार हैं:")
       enc = song_q.replace(" ", "+")
       yt = f"https://www.youtube.com/results?search_query={enc}"
       sp = f"https://open.spotify.com/search/{enc}"
-
       st.markdown(
           f"""
             <div style="background: #12131a; padding: 20px; border-radius: 12px; border: 1px solid #1e293b; margin-top: 15px;">
@@ -242,7 +239,6 @@ with tab3:
     else:
       st.error("गाने का नाम दर्ज करें।")
 
-# TAB 4: SOCIAL MEDIA MANAGER
 with tab4:
   st.subheader("📱 Multi-Platform Social Media Manager")
   plat = st.selectbox(
@@ -255,7 +251,6 @@ with tab4:
       ],
   )
   topic = st.text_input("किस टॉपिक पर पोस्ट तैयार करनी है?")
-
   if st.button("कंटेंट और स्ट्रैटेजी बनाएं"):
     if api_ready and topic:
       with st.spinner("Social Manager पोस्ट तैयार कर रहा है..."):
@@ -268,11 +263,9 @@ with tab4:
     else:
       st.warning("API Key और टॉपिक दर्ज करें।")
 
-# TAB 5: VIRAL SEO & HASHTAGS
 with tab5:
   st.subheader("🏷️ SEO & Hashtag Generator")
   ht_keyword = st.text_input("मुख्य कीवर्ड लिखें:")
-
   if st.button("वायरल हैशटैग्स जनरेट करें"):
     if api_ready and ht_keyword:
       with st.spinner("SEO Agent हैशटैग्स खोज रहा है..."):
