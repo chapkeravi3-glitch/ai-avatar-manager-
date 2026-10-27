@@ -416,10 +416,185 @@ EXTRA_TPL = """
 """
 
 
+THREE_TPL = """
+<style>
+ body{margin:0;background:transparent;font-family:sans-serif;color:#e2e8f0;text-align:center}
+ #wrap{width:240px;height:290px;margin:6px auto 0;border-radius:24px;overflow:hidden;
+   background:radial-gradient(circle at 50% 30%,#1e3a5f,#0b1220);
+   border:1px solid rgba(56,189,248,.5);box-shadow:0 0 28px rgba(56,189,248,.35)}
+ canvas{display:block}
+ .bars{display:flex;gap:4px;justify-content:center;align-items:flex-end;height:26px;margin-top:8px}
+ .bars i{width:5px;height:4px;border-radius:3px;background:#38bdf8;display:block}
+ #st{margin-top:4px;font-size:13px;color:#34d399;font-weight:700}
+ button{margin-top:6px;background:#0ea5e9;color:#fff;border:0;border-radius:20px;padding:8px 18px;font-size:14px;display:none}
+</style>
+<div id="wrap"></div>
+<div class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<div id="st">● सुन रहा हूँ</div>
+<button id="btn">🔊 सुनिए</button>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const G='__G__', P=__PAYLOAD__;
+const $=id=>document.getElementById(id);
+const bars=[...document.querySelectorAll('#bars i')];
+let speaking=false, amp=0, t=0, blink=0, nextBlink=2, thinking=(P.mode==='think');
+function setSpeak(v){ speaking=v; $('st').textContent = v ? '🗣 बोल रहा हूँ…' : '● सुन रहा हूँ'; }
+if(thinking) $('st').textContent='🤔 सोच रहा हूँ…';
+
+function init(){
+  const W=240, H=290, F=(G==='f');
+  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  renderer.setSize(W,H); renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+  $('wrap').appendChild(renderer.domElement);
+  const scene=new THREE.Scene();
+  const cam=new THREE.PerspectiveCamera(32,W/H,0.1,50);
+  cam.position.set(0,-0.15,6.2); cam.lookAt(0,-0.35,0);
+  scene.add(new THREE.AmbientLight(0xffffff,0.8));
+  const key=new THREE.DirectionalLight(0xffffff,0.85); key.position.set(2,3,5); scene.add(key);
+  const rim=new THREE.DirectionalLight(0x38bdf8,0.45); rim.position.set(-3,1,-2); scene.add(rim);
+
+  const M=(c,r)=>new THREE.MeshStandardMaterial({color:c,roughness:(r===undefined?0.6:r),metalness:0});
+  const B=(c)=>new THREE.MeshBasicMaterial({color:c});
+  const sph=(r)=>new THREE.SphereGeometry(r,40,32);
+  const skin=M(0xe0a97f,0.55);
+  const SX=0.92, SY=1.1, SZ=0.98;
+  const zAt=(x,y)=>SZ*Math.sqrt(Math.max(0.02,1-(x/SX)*(x/SX)-(y/SY)*(y/SY)));
+  function add(parent,geo,mat,x,y,z,sx,sy,sz){
+    const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z);
+    if(sx!==undefined) m.scale.set(sx,sy,sz);
+    parent.add(m); return m;
+  }
+
+  // ---- शरीर ----
+  const body=new THREE.Group(); scene.add(body);
+  add(body,sph(1),M(F?0x7c3aed:0x1e293b,0.7),0,-2.45,0,1.5,0.9,0.8);
+  add(body,new THREE.CylinderGeometry(0.32,0.38,0.8,24),M(0xd39a70,0.6),0,-1.25,-0.05);
+  const collar=add(body,new THREE.TorusGeometry(0.38,0.07,12,32),M(F?0xfacc15:0xf8fafc,0.5),0,-1.58,0.0);
+  collar.rotation.x=Math.PI/2;
+
+  // ---- सिर ----
+  const head=new THREE.Group(); scene.add(head);
+  add(head,sph(1),skin,0,0,0,SX,SY,SZ);
+  add(head,sph(0.12),skin,-SX*0.99,0.0,-0.05,0.7,1.7,0.9);
+  add(head,sph(0.12),skin,SX*0.99,0.0,-0.05,0.7,1.7,0.9);
+  add(head,sph(0.11),skin,0,-0.1,zAt(0,-0.1)+0.06,1,1.2,1.1);
+  add(head,sph(0.07),skin,0,0.12,zAt(0,0.12)+0.02,1,2.0,0.8);
+  add(head,sph(0.09),M(0xf08a8a,0.8),-0.5,-0.25,zAt(0.5,-0.25)-0.05,1.4,0.9,0.3).material.opacity=1;
+  add(head,sph(0.09),M(0xf08a8a,0.8),0.5,-0.25,zAt(0.5,-0.25)-0.05,1.4,0.9,0.3).material.opacity=1;
+
+  // ---- बाल ----
+  const hairC=F?0x2b1a12:0x1c1410, hairM=M(hairC,0.9);
+  hairM.side=THREE.DoubleSide;
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(1,40,28,0,Math.PI*2,0,F?1.5:1.45),hairM);
+  cap.scale.set(SX+0.05,SY+0.05,SZ+0.06); cap.rotation.x=-0.75; head.add(cap);
+  if(F){
+    add(head,sph(1),hairM,0,-0.4,-0.3,1.0,1.3,0.8);
+    add(head,sph(0.2),hairM,-0.84,-0.25,0.12,0.8,3.2,1.5);
+    add(head,sph(0.2),hairM,0.84,-0.25,0.12,0.8,3.2,1.5);
+    add(head,sph(0.05),M(0xfacc15,0.3),-SX*0.98,-0.22,-0.02,1,1,1);
+    add(head,sph(0.05),M(0xfacc15,0.3),SX*0.98,-0.22,-0.02,1,1,1);
+  }
+
+  // ---- आँखें, पलकें, भौंहें ----
+  const eyes=[], lids=[], brows=[];
+  [-1,1].forEach(side=>{
+    const x=0.34*side, y=0.2, z=zAt(x,y)-0.10;
+    const outer=new THREE.Group(); outer.position.set(x,y,z); head.add(outer);
+    const ball=new THREE.Group(); outer.add(ball);
+    add(ball,sph(0.15),M(0xffffff,0.3),0,0,0);
+    const iris=add(ball,new THREE.SphereGeometry(0.152,24,12,0,Math.PI*2,0,0.55),B(F?0x2f6f4e:0x4a2c17),0,0,0); iris.rotation.x=Math.PI/2;
+    const pup=add(ball,new THREE.SphereGeometry(0.154,20,10,0,Math.PI*2,0,0.27),B(0x050505),0,0,0); pup.rotation.x=Math.PI/2;
+    add(ball,sph(0.014),B(0xffffff),0.035,0.04,0.148);
+    eyes.push(ball);
+    const pivot=new THREE.Group(); outer.add(pivot);
+    add(pivot,new THREE.SphereGeometry(0.16,24,12,0,Math.PI*2,0,1.1),skin,0,0,0);
+    lids.push(pivot);
+    const br=add(head,new THREE.BoxGeometry(0.3,F?0.035:0.055,0.06),B(hairC),x,0.47,zAt(x,0.47)+0.0);
+    br.rotation.x=-0.35; br.rotation.z=-0.12*side; br.userData.by=0.47; brows.push(br);
+  });
+
+  // ---- मुँह ----
+  const mz=zAt(0,-0.5);
+  const mouth=new THREE.Group(); mouth.position.set(0,-0.5,mz); head.add(mouth);
+  const inner=add(mouth,new THREE.CircleGeometry(1,32),B(0x3a0b10),0,0,0.012,0.22,0.01,1);
+  const teeth=add(mouth,new THREE.CircleGeometry(1,24),B(0xf8f4ef),0,0,0.0125,0.16,0.001,1);
+  const tongue=add(mouth,new THREE.CircleGeometry(1,24),B(0xc4566a),0,0,0.0125,0.1,0.001,1);
+  const lipMat=M(F?0xd6455f:0xb94a5c,0.45);
+  const lipU=add(mouth,sph(0.1),lipMat,0,0.02,0.02,2.3,0.45,0.6);
+  const lipL=add(mouth,sph(0.1),lipMat,0,-0.025,0.02,2.1,0.5,0.65);
+
+  let firstFrame=true;
+  function frame(){
+    t+=0.016;
+    const target = speaking ? (0.25+0.75*Math.abs(Math.sin(t*10.5))*(0.5+0.5*Math.abs(Math.sin(t*3.1+1)))) : 0;
+    amp += (target-amp)*0.4;
+    nextBlink-=0.016; if(nextBlink<0){ blink=1; nextBlink=2+Math.random()*3; }
+    blink=Math.max(0,blink-0.1);
+    const b=blink>0?Math.sin(blink*Math.PI):0;
+    lids.forEach(l=>{ l.rotation.x=1.15*b; });
+    const gx=Math.sin(t*0.7)*0.18, gy=thinking?-0.3:Math.sin(t*0.5)*0.05;
+    eyes.forEach(e=>{ e.rotation.y=gx; e.rotation.x=gy; });
+    const raise=(thinking?0.06:0)+amp*0.025+Math.sin(t*0.9)*0.004;
+    brows.forEach(br=>{ br.position.y=br.userData.by+raise; });
+
+    const gap=amp*0.26;
+    const wS=1+0.12*Math.sin(t*5.3+1)*amp-0.1*amp;
+    inner.scale.set(0.22*wS,gap/2+0.008,1);
+    const tY=Math.min(gap*0.28,0.05);
+    teeth.scale.set(0.16*wS,Math.max(0.001,tY),1); teeth.position.y=gap/2-tY*0.8;
+    const gY=Math.min(gap*0.25,0.05);
+    tongue.scale.set(0.1*wS,Math.max(0.001,gY),1); tongue.position.y=-gap/2+gY*0.8;
+    lipU.position.y=gap/2+0.02; lipL.position.y=-gap/2-0.025;
+    lipU.scale.set(2.3*wS,0.45,0.6); lipL.scale.set(2.1*wS,0.5,0.65);
+
+    head.rotation.y=Math.sin(t*0.5)*0.18;
+    head.rotation.x=Math.sin(t*0.7)*0.03+(speaking?Math.sin(t*3.2)*0.05*(0.5+amp):0)+(thinking?-0.08:0);
+    head.rotation.z=thinking?0.08:Math.sin(t*0.6)*0.02;
+    head.position.y=Math.sin(t*1.6)*0.01;
+    body.scale.y=1+0.008*Math.sin(t*1.6);
+    renderer.render(scene,cam);
+    bars.forEach((bb,i)=>{ bb.style.height=(4+amp*22*(0.5+0.5*Math.abs(Math.sin(t*9+i))))+'px'; });
+    requestAnimationFrame(frame);
+  }
+  frame();
+}
+try{
+  if(typeof THREE==='undefined'){ $('st').textContent='⚠️ 3D लाइब्रेरी नहीं आई (इंटरनेट देखें)। सेटिंग में 2D चेहरा चुनें'; }
+  else { init(); }
+}catch(e){ $('st').textContent='⚠️ इस फोन/ब्राउज़र में 3D नहीं चला। सेटिंग में 2D चेहरा चुनें'; }
+
+function speakBrowser(){
+  if(!P.text) return;
+  let started=false;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(P.text); u.lang='hi-IN'; u.rate=1.05;
+  const v=speechSynthesis.getVoices().find(v=>v.lang.replace('_','-').toLowerCase().startsWith('hi'));
+  if(v) u.voice=v;
+  u.onstart=()=>{started=true;setSpeak(true)};
+  u.onend=()=>{started=true;setSpeak(false)};
+  u.onerror=()=>{started=true;setSpeak(false);$('st').textContent='▶ "सुनिए" बटन दबाएँ'};
+  speechSynthesis.speak(u);
+  setTimeout(()=>{ if(!started){ setSpeak(true); setTimeout(()=>setSpeak(false), P.text.length*65); } },1200);
+}
+function speakAudio(){
+  window._a=new Audio('data:audio/mp3;base64,'+P.audio);
+  window._a.onplay=()=>setSpeak(true);
+  window._a.onended=window._a.onpause=()=>setSpeak(false);
+  window._a.play().catch(()=>{ $('st').textContent='▶ "सुनिए" बटन दबाएँ'; });
+}
+function go(){ P.audio ? speakAudio() : speakBrowser(); }
+if(P.text){ $('btn').style.display='inline-block'; $('btn').onclick=go; setTimeout(go,250); }
+</script>
+"""
+
+
 def render_avatar(slot, gender, text="", audio_b64=None, mode="idle", links=None):
     links = links or []
     payload = json.dumps({"text": text, "audio": audio_b64, "mode": mode}).replace("</", "<\\/")
-    if PHOTO:
+    if face_style.startswith("🧊"):
+        html = THREE_TPL.replace("__G__", "f" if gender == "महिला" else "m").replace("__PAYLOAD__", payload)
+        height = 410
+    elif PHOTO:
         html = PHOTO_TPL.replace("__PAYLOAD__", payload).replace("__PHOTO__", json.dumps(PHOTO))
         height = 560
     else:
@@ -538,6 +713,7 @@ with st.expander("⚙️ सेटिंग (आवाज़, चेहरा)",
     voice_mode = st.radio("आवाज़", ["⚡ तेज़ (फोन की आवाज़)", "🎙 ज़्यादा इंसानी (थोड़ा धीमा)"], index=0)
     gender = st.radio("चेहरा और आवाज़", ["पुरुष", "महिला"], horizontal=True)
     default_music = st.selectbox("गाना चलाने के लिए डिफ़ॉल्ट ऐप", ["YouTube", "Spotify", "JioSaavn"])
+    face_style = st.radio("चेहरा कैसा हो", ["🧊 3D चेहरा (फ्री)", "🖼 मेरी फोटो वाला", "🎨 कार्टून 2D"], index=0)
     up = st.file_uploader("👤 असली इंसानी चेहरा: किसी आदमी की सामने से, साफ़ फोटो डालें (अपनी या जिसकी अनुमति हो)", type=["png", "jpg", "jpeg"])
     mx = st.slider("मुँह की जगह: बाएँ-दाएँ", 0, 100, 50)
     my = st.slider("मुँह की जगह: ऊपर-नीचे", 0, 100, 68)
@@ -547,7 +723,7 @@ with st.expander("⚙️ सेटिंग (आवाज़, चेहरा)",
 EDGE_VOICE = "hi-IN-MadhurNeural" if gender == "पुरुष" else "hi-IN-SwaraNeural"
 FACE_FILE = next((p for p in ("face.jpg", "face.jpeg", "face.png") if os.path.exists(p)), None)
 PHOTO = None
-if up is not None or FACE_FILE:
+if face_style.startswith("🖼") and (up is not None or FACE_FILE):
     try:
         import io
         from PIL import Image
