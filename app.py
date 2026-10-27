@@ -148,7 +148,7 @@ st.markdown(
 )
 
 # ==========================================
-# ⚡ SMART MODEL DISCOVERY & BULLETPROOF SETUP
+# ⚡ GEMINI API SETUP (Using exact models/gemini-3.8-flash)
 # ==========================================
 api_ready = False
 model = None
@@ -162,34 +162,16 @@ try:
     if k_input:
       genai.configure(api_key=k_input)
 
-  # ऑटोमैटिकली चेक करेगा कि आपकी की के लिए कौन सा मॉडल सपोर्टेड है
-  try:
-    for m in genai.list_models():
-      if "generateContent" in m.supported_generation_methods:
-        model = genai.GenerativeModel(m.name)
-        api_ready = True
-        break
-  except Exception:
-    pass
-
-  # अगर लिस्टिंग फेल हो जाए, तो सुरक्षित विकल्पों को बारी-बारी ट्राई करेगा
-  if not model:
-    for model_name in ["gemini-1.5-flash", "gemini-pro", "gemini-1.5-pro"]:
-      try:
-        model = genai.GenerativeModel(model_name)
-        # एक डमी टेस्ट कॉल ताकि कन्फर्म हो जाए कि मॉडल काम कर रहा है
-        test_res = model.generate_content("Hi")
-        if test_res:
-          api_ready = True
-          break
-      except Exception:
-        continue
-
-  if not model:
-    api_ready = False
-
+  # Directly using the required model format with 'models/' prefix
+  model = genai.GenerativeModel("models/gemini-3.8-flash")
+  api_ready = True
 except Exception as e:
-  api_ready = False
+  # Fallback mechanism if primary fails
+  try:
+    model = genai.GenerativeModel("gemini-3.8-flash")
+    api_ready = True
+  except Exception as ex:
+    api_ready = False
 
 # ==========================================
 # 👩‍💼 CINEMATIC HUMAN AVATAR HERO HEADER (TOP)
