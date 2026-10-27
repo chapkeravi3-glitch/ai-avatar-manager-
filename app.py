@@ -139,7 +139,7 @@ st.markdown(
 )
 
 # ==========================================
-# ⚡ GEMINI API SETUP (Safe Initialization)
+# ⚡ SMART DYNAMIC MODEL DISCOVERY (Auto-Detects Working Model)
 # ==========================================
 api_ready = False
 model = None
@@ -153,9 +153,26 @@ try:
     if k_input:
       genai.configure(api_key=k_input)
 
-  # Using stable gemini-pro which works universally with standard keys
-  model = genai.GenerativeModel("gemini-pro")
-  api_ready = True
+  # ऑटोमैटिकली उपलब्ध मॉडल ढूंढें जो generateContent सपोर्ट करते हैं
+  for m in genai.list_models():
+    if "generateContent" in m.supported_generation_methods:
+      model = genai.GenerativeModel(m.name)
+      api_ready = True
+      break
+
+  # अगर लिस्टिंग से न मिले, तो सुरक्षित फॉלबैक ट्राई करें
+  if not model:
+    for fallback_name in ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]:
+      try:
+        model = genai.GenerativeModel(fallback_name)
+        api_ready = True
+        break
+      except:
+        continue
+
+  if not model:
+    api_ready = False
+
 except Exception as e:
   api_ready = False
 
@@ -226,8 +243,8 @@ with tab1:
             reply = response.text
         except Exception as e:
           reply = (
-              f"⚠️ **API Connection Error:** {str(e)}<br>कृपया जाँच करें कि आपकी"
-              " API Key सही है या नहीं।"
+              f"⚠️ **API Error:** {str(e)}<br>कृपया जाँच करें कि आपकी API Key"
+              " सही है या नहीं।"
           )
 
       st.markdown(reply, unsafe_allow_html=True)
