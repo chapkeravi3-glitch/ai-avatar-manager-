@@ -24,7 +24,6 @@ st.markdown(
         font-family: 'Inter', sans-serif; 
     }
     
-    /* Cinematic Fullscreen Human-Like Holographic Avatar Hero */
     .avatar-hero-container {
         position: relative;
         width: 100%;
@@ -42,7 +41,6 @@ st.markdown(
         backdrop-filter: blur(16px);
     }
 
-    /* True Human-Like Neural Hologram Face Container */
     .neural-face-wrapper {
         position: relative;
         width: 180px;
@@ -62,7 +60,6 @@ st.markdown(
         100% { transform: scale(0.97); box-shadow: 0 0 35px rgba(56, 189, 248, 0.6); }
     }
 
-    /* Realistic Professional AI Anchor Avatar Visual */
     .anchor-avatar-img {
         width: 168px;
         height: 168px;
@@ -72,7 +69,6 @@ st.markdown(
         box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
     }
 
-    /* Live Neural Status Badge */
     .neural-badge {
         margin-top: 15px;
         background: rgba(16, 185, 129, 0.15);
@@ -116,7 +112,6 @@ st.markdown(
         box-shadow: 0 10px 25px rgba(0,0,0,0.5);
     }
 
-    /* Navigation Tabs Styling */
     .stTabs [data-baseweb="tab-list"] {
         gap: 12px;
         background-color: #0b0f19;
@@ -140,7 +135,6 @@ st.markdown(
         box-shadow: 0 0 15px rgba(2, 132, 199, 0.5);
     }
 
-    /* Input & Form Elements */
     .stTextInput input, .stTextArea textarea, .stSelectbox select {
         background-color: #0f172a !important;
         color: white !important;
@@ -148,17 +142,13 @@ st.markdown(
         border: 1px solid #334155 !important;
         padding: 12px !important;
     }
-    .stTextInput input:focus, .stTextArea textarea:focus {
-        border-color: #38bdf8 !important;
-        box-shadow: 0 0 10px rgba(56, 189, 248, 0.4) !important;
-    }
     </style>
 """,
     unsafe_allow_html=True,
 )
 
 # ==========================================
-# ⚡ SUPER-FAST GEMINI API SETUP & CACHING
+# ⚡ GEMINI API SETUP (Using universal gemini-pro)
 # ==========================================
 api_ready = False
 model = None
@@ -167,14 +157,13 @@ try:
   if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
   else:
-    # Sidebar fallback if secrets are not configured yet
     st.sidebar.title("⚙️ System Config")
     k_input = st.sidebar.text_input("Enter Gemini API Key", type="password")
     if k_input:
       genai.configure(api_key=k_input)
 
-  # Using flash model for instantaneous blazing-fast responses
-  model = genai.GenerativeModel("gemini-1.5-flash")
+  # Using gemini-pro for universal compatibility and zero 404 errors
+  model = genai.GenerativeModel("gemini-pro")
   api_ready = True
 except Exception as e:
   api_ready = False
@@ -186,7 +175,6 @@ st.markdown(
     """
     <div class="avatar-hero-container">
         <div class="neural-face-wrapper">
-            <!-- Professional High-Resolution Human-Like Executive Anchor Image -->
             <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80" class="anchor-avatar-img" alt="Human AI Manager">
         </div>
         <div class="neural-badge">
@@ -235,7 +223,6 @@ with tab1:
         reply = "⚠️ कृपया `.streamlit/secrets.toml` में या साइडबार में अपनी सही Gemini API Key सेट करें।"
       else:
         try:
-          # Optimized for speed
           with st.spinner("⚡ AI Agent thinking instantly..."):
             sys_prompt = (
                 "You are an elite, professional, human-like virtual executive"
