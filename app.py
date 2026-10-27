@@ -162,7 +162,7 @@ st.markdown(
             <div class="live-dot"></div> AUTO-DETECT MODEL EXECUTIVE ACTIVE
         </div>
         <div class="avatar-speech-box">
-            "नमस्ते बॉस! मॉडल ऑटो-डिटेक्ट हो चुका है। बताइए, आज क्या करना है?"
+            "नमस्ते बॉस! सिस्टम पूरी तरह तैयार है। बताइए, आज क्या करना है?"
         </div>
     </div>
 """,
@@ -310,4 +310,3 @@ with tab5:
           st.error(f"Error: {str(e)}")
     else:
       st.error("कृपया कीवर्ड दर्ज करें।")
-k
