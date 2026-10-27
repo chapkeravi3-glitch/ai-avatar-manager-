@@ -3,7 +3,7 @@ import google.generativeai as genai
 import streamlit as st
 
 # ==========================================
-# ⚙️ PAGE & SYSTEM CONFIGURATION
+# ⚙️ PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
     page_title="Autonomous Executive AI Human Agent",
@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# 🎨 ULTRA-PREMIUM CINEMATIC UI & HUMAN AVATAR CSS
+# 🎨 CINEMATIC UI & HUMAN AVATAR CSS
 # ==========================================
 st.markdown(
     """
@@ -37,7 +37,7 @@ st.markdown(
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), inset 0 0 30px rgba(56, 189, 248, 0.1);
+        box-shadow: 0 25px 60px rgba(0,0,0,0.8);
         backdrop-filter: blur(16px);
     }
 
@@ -50,7 +50,7 @@ st.markdown(
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 0 50px rgba(56, 189, 248, 0.8), 0 0 100px rgba(14, 165, 233, 0.4);
+        box-shadow: 0 0 50px rgba(56, 189, 248, 0.8);
         animation: neural-pulse 3.5s infinite ease-in-out;
     }
 
@@ -66,7 +66,6 @@ st.markdown(
         border-radius: 50%;
         object-fit: cover;
         border: 3px solid rgba(255, 255, 255, 0.8);
-        box-shadow: inset 0 0 15px rgba(0,0,0,0.5);
     }
 
     .neural-badge {
@@ -78,11 +77,9 @@ st.markdown(
         border-radius: 30px;
         font-size: 13px;
         font-weight: 700;
-        letter-spacing: 1px;
         display: flex;
         align-items: center;
         gap: 8px;
-        box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
     }
 
     .live-dot {
@@ -90,7 +87,6 @@ st.markdown(
         height: 8px;
         background-color: #34d399;
         border-radius: 50%;
-        box-shadow: 0 0 8px #34d399;
         animation: blink-dot 1s infinite alternate;
     }
 
@@ -109,7 +105,6 @@ st.markdown(
         color: #e2e8f0;
         text-align: center;
         max-width: 700px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.5);
     }
 
     .stTabs [data-baseweb="tab-list"] {
@@ -118,7 +113,6 @@ st.markdown(
         padding: 12px;
         border-radius: 16px;
         border: 1px solid #1e293b;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.4);
     }
     .stTabs [data-baseweb="tab"] {
         background-color: #111827;
@@ -126,13 +120,10 @@ st.markdown(
         color: #94a3b8;
         font-weight: 600;
         padding: 12px 24px;
-        border: 1px solid #1f2937;
     }
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #0284c7, #2563eb) !important;
         color: white !important;
-        border-color: #38bdf8 !important;
-        box-shadow: 0 0 15px rgba(2, 132, 199, 0.5);
     }
 
     .stTextInput input, .stTextArea textarea, .stSelectbox select {
@@ -148,7 +139,7 @@ st.markdown(
 )
 
 # ==========================================
-# ⚡ GEMINI API SETUP (Using exact models/gemini-3.8-flash)
+# ⚡ GEMINI API SETUP (Safe Initialization)
 # ==========================================
 api_ready = False
 model = None
@@ -162,19 +153,14 @@ try:
     if k_input:
       genai.configure(api_key=k_input)
 
-  # Directly using the required model format with 'models/' prefix
-  model = genai.GenerativeModel("models/gemini-3.8-flash")
+  # Using stable gemini-pro which works universally with standard keys
+  model = genai.GenerativeModel("gemini-pro")
   api_ready = True
 except Exception as e:
-  # Fallback mechanism if primary fails
-  try:
-    model = genai.GenerativeModel("gemini-3.8-flash")
-    api_ready = True
-  except Exception as ex:
-    api_ready = False
+  api_ready = False
 
 # ==========================================
-# 👩‍💼 CINEMATIC HUMAN AVATAR HERO HEADER (TOP)
+# 👩‍💼 CINEMATIC HUMAN AVATAR HERO HEADER
 # ==========================================
 st.markdown(
     """
@@ -194,7 +180,7 @@ st.markdown(
 )
 
 # ==========================================
-# 🗂️ SLIDE & EXPLORE MODULE TABS
+# 🗂️ MODULE TABS
 # ==========================================
 tab1, tab2, tab3, tab4, tab5 = st.tabs(
     [
@@ -206,7 +192,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(
     ]
 )
 
-# --- TAB 1: FAST EXECUTIVE CHAT ---
+# --- TAB 1: EXECUTIVE CHAT ---
 with tab1:
   st.subheader("💬 Super-Fast Neural Chat with Executive Agent")
   if "chat_messages" not in st.session_state:
@@ -228,20 +214,23 @@ with tab1:
         reply = "⚠️ कृपया `.streamlit/secrets.toml` में या साइडबार में अपनी सही Gemini API Key सेट करें।"
       else:
         try:
-          with st.spinner("⚡ AI Agent thinking instantly..."):
+          with st.spinner("⚡ AI Agent responding..."):
             sys_prompt = (
                 "You are an elite, professional, human-like virtual executive"
-                " manager. Reply extremely fast, smartly, and conversationally"
-                " in natural Hinglish/Hindi."
+                " manager. Reply quickly, smartly, and conversationally in"
+                " natural Hinglish/Hindi."
             )
             response = model.generate_content(
                 f"{sys_prompt}\nUser: {user_input}"
             )
             reply = response.text
         except Exception as e:
-          reply = f"Connection Error: {str(e)}"
+          reply = (
+              f"⚠️ **API Connection Error:** {str(e)}<br>कृपया जाँच करें कि आपकी"
+              " API Key सही है या नहीं।"
+          )
 
-      st.markdown(reply)
+      st.markdown(reply, unsafe_allow_html=True)
       st.session_state.chat_messages.append(
           {"role": "assistant", "content": reply}
       )
@@ -262,13 +251,15 @@ with tab2:
   if st.button("🚀 तुरंत ट्रेंड्स और रील्स आइडिया खोजें"):
     if api_ready and model:
       with st.spinner("Trend Hunter इंटरनेट स्कैन कर रहा है..."):
-        prompt_t = (
-            f"As a viral growth expert, give 3 top trending topics, viral hooks,"
-            f" and script framework for: {niche_choice}"
-        )
-        res = model.generate_content(prompt_t)
-        st.success("✅ वायरल ग्रोथ स्ट्रेटेजी तैयार है:")
-        st.markdown(res.text)
+        try:
+          res = model.generate_content(
+              f"As a viral growth expert, give 3 top trending topics, viral"
+              f" hooks, and script framework for: {niche_choice}"
+          )
+          st.success("✅ वायरल ग्रोथ स्ट्रेटेजी तैयार है:")
+          st.markdown(res.text)
+        except Exception as e:
+          st.error(f"Error: {str(e)}")
     else:
       st.error("API Key उपलब्ध नहीं है।")
 
@@ -285,10 +276,10 @@ with tab3:
 
       st.markdown(
           f"""
-            <div style="background: #0f172a; padding: 22px; border-radius: 14px; border: 1px solid #38bdf8; margin-top: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+            <div style="background: #0f172a; padding: 22px; border-radius: 14px; border: 1px solid #38bdf8; margin-top: 15px;">
                 <p style="margin-bottom: 15px; font-size: 16px; color:#38bdf8;"><b>म्यूज़िक प्लेयर लिंक्स:</b></p>
-                <a href="{yt_url}" target="_blank" style="display: inline-block; background: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 10px; font-weight: bold; margin-right: 15px; box-shadow: 0 4px 12px rgba(239,68,68,0.4);">▶ YouTube पर सुनें</a>
-                <a href="{spotify_url}" target="_blank" style="display: inline-block; background: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 10px; font-weight: bold; box-shadow: 0 4px 12px rgba(34,197,94,0.4);">🎧 Spotify पर सुनें</a>
+                <a href="{yt_url}" target="_blank" style="display: inline-block; background: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 10px; font-weight: bold; margin-right: 15px;">▶ YouTube पर सुनें</a>
+                <a href="{spotify_url}" target="_blank" style="display: inline-block; background: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 10px; font-weight: bold;">🎧 Spotify पर सुनें</a>
             </div>
             """,
           unsafe_allow_html=True,
@@ -311,13 +302,15 @@ with tab4:
   if st.button("✨ पोस्ट और कैप्शन जनरेट करें"):
     if api_ready and model and post_q:
       with st.spinner("Social Manager पोस्ट तैयार कर रहा है..."):
-        prompt_s = (
-            f"Create a high-engagement viral post and strategy for"
-            f" {platform_sel} about: {post_q}"
-        )
-        res = model.generate_content(prompt_s)
-        st.info(res.text)
-        st.success("✅ सोशल मीडिया पोस्ट तैयार है!")
+        try:
+          res = model.generate_content(
+              f"Create a high-engagement viral post and strategy for"
+              f" {platform_sel} about: {post_q}"
+          )
+          st.info(res.text)
+          st.success("✅ सोशल मीडिया पोस्ट तैयार है!")
+        except Exception as e:
+          st.error(f"Error: {str(e)}")
     else:
       st.error("कृपया API Key और टॉपिक दर्ज करें।")
 
@@ -328,12 +321,14 @@ with tab5:
   if st.button("🔍 वायरल हैशटैग्स बनाएं"):
     if api_ready and model and tag_kw:
       with st.spinner("SEO Agent हैशटैग्स खोज रहा है..."):
-        prompt_h = (
-            f"Generate 30 top-ranking viral hashtags and SEO keywords for"
-            f" YouTube Shorts and Instagram Reels for: {tag_kw}"
-        )
-        res = model.generate_content(prompt_h)
-        st.success("✅ वायरल हैशटैग्स तैयार हैं:")
-        st.markdown(res.text)
+        try:
+          res = model.generate_content(
+              f"Generate 30 top-ranking viral hashtags and SEO keywords for"
+              f" YouTube Shorts and Instagram Reels for: {tag_kw}"
+          )
+          st.success("✅ वायरल हैशटैग्स तैयार हैं:")
+          st.markdown(res.text)
+        except Exception as e:
+          st.error(f"Error: {str(e)}")
     else:
       st.error("कृपया कीवर्ड दर्ज करें।")
