@@ -10,7 +10,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# ⚙️ GEMINI API SETUP (Python Backend)
+# ⚡ SMART AUTO-MODEL DISCOVERY & BACKEND SETUP
 # ==========================================
 api_ready = False
 model = None
@@ -24,9 +24,29 @@ try:
     if k_input:
       genai.configure(api_key=k_input)
 
-  # Using stable model to prevent any 404 or connection blocks
-  model = genai.GenerativeModel("gemini-1.5-flash")
-  api_ready = True
+  # ऑटोमैटिकली चेक करेगा कि आपकी की के लिए कौन सा मॉडल सपोर्टेड है
+  try:
+    for m in genai.list_models():
+      if "generateContent" in m.supported_generation_methods:
+        model = genai.GenerativeModel(m.name)
+        api_ready = True
+        break
+  except Exception:
+    pass
+
+  # अगर लिस्टिंग से न मिले, तो सुरक्षित विकल्पों को बारी-बारी ट्राई करेगा
+  if not model:
+    for model_name in ["gemini-pro", "gemini-1.5-flash", "gemini-1.5-pro"]:
+      try:
+        model = genai.GenerativeModel(model_name)
+        api_ready = True
+        break
+      except Exception:
+        continue
+
+  if not model:
+    api_ready = False
+
 except Exception as e:
   api_ready = False
 
@@ -139,10 +159,10 @@ st.markdown(
             <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80" class="anchor-avatar-img" alt="Human AI Manager">
         </div>
         <div class="neural-badge">
-            <div class="live-dot"></div> 100% SECURE BACKEND EXECUTIVE ACTIVE
+            <div class="live-dot"></div> AUTO-DETECT MODEL EXECUTIVE ACTIVE
         </div>
         <div class="avatar-speech-box">
-            "नमस्ते बॉस! अब कनेक्शन पूरी तरह से सुरक्षित है। बताइए, आज क्या करना है?"
+            "नमस्ते बॉस! मॉडल ऑटो-डिटेक्ट हो चुका है। बताइए, आज क्या करना है?"
         </div>
     </div>
 """,
@@ -290,3 +310,4 @@ with tab5:
           st.error(f"Error: {str(e)}")
     else:
       st.error("कृपया कीवर्ड दर्ज करें।")
+k
