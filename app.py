@@ -21,7 +21,7 @@ if k_input:
 # ==========================================
 # 🎨 ULTRA-FAST CINEMATIC UI & TALKING AVATAR HTML/JS
 # ==========================================
-html_code = f"""
+html_template = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,13 +29,13 @@ html_code = f"""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Executive Agent</title>
     <style>
-        * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }}
-        body {{ background: radial-gradient(circle at top, #0f172a 0%, #020617 100%); color: #f8fafc; min-height: 100vh; padding: 20px; }}
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background: radial-gradient(circle at top, #0f172a 0%, #020617 100%); color: #f8fafc; min-height: 100vh; padding: 20px; }
         
-        .container {{ max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }}
+        .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
 
         /* Cinematic Talking Avatar Hero */
-        .avatar-hero {{
+        .avatar-hero {
             background: linear-gradient(135deg, rgba(30, 41, 59, 0.8), rgba(15, 23, 42, 0.95));
             border-radius: 24px;
             border: 1px solid rgba(56, 189, 248, 0.4);
@@ -45,9 +45,9 @@ html_code = f"""
             align-items: center;
             box-shadow: 0 20px 50px rgba(0,0,0,0.8), inset 0 0 25px rgba(56, 189, 248, 0.1);
             backdrop-filter: blur(12px);
-        }}
+        }
 
-        .neural-face {{
+        .neural-face {
             position: relative;
             width: 150px;
             height: 150px;
@@ -58,23 +58,23 @@ html_code = f"""
             justify-content: center;
             box-shadow: 0 0 40px rgba(56, 189, 248, 0.8);
             animation: pulse-glow 3s infinite ease-in-out;
-        }}
+        }
 
-        @keyframes pulse-glow {{
-            0% {{ transform: scale(0.98); box-shadow: 0 0 30px rgba(56, 189, 248, 0.5); }}
-            50% {{ transform: scale(1.04); box-shadow: 0 0 60px rgba(56, 189, 248, 0.9); }}
-            100% {{ transform: scale(0.98); box-shadow: 0 0 30px rgba(56, 189, 248, 0.5); }}
-        }}
+        @keyframes pulse-glow {
+            0% { transform: scale(0.98); box-shadow: 0 0 30px rgba(56, 189, 248, 0.5); }
+            50% { transform: scale(1.04); box-shadow: 0 0 60px rgba(56, 189, 248, 0.9); }
+            100% { transform: scale(0.98); box-shadow: 0 0 30px rgba(56, 189, 248, 0.5); }
+        }
 
-        .avatar-img {{
+        .avatar-img {
             width: 140px;
             height: 140px;
             border-radius: 50%;
             object-fit: cover;
             border: 3px solid rgba(255,255,255,0.9);
-        }}
+        }
 
-        .status-badge {{
+        .status-badge {
             margin-top: 12px;
             background: rgba(16, 185, 129, 0.15);
             border: 1px solid #10b981;
@@ -88,10 +88,10 @@ html_code = f"""
             gap: 6px;
         }
 
-        .dot {{ width: 7px; height: 7px; background: #34d399; border-radius: 50%; animation: blink 1s infinite alternate; }}
-        @keyframes blink {{ 0% {{ opacity: 0.3; }} 100% {{ opacity: 1; }} }}
+        .dot { width: 7px; height: 7px; background: #34d399; border-radius: 50%; animation: blink 1s infinite alternate; }
+        @keyframes blink { 0% { opacity: 0.3; } 100% { opacity: 1; } }
 
-        .speech-bubble {{
+        .speech-bubble {
             margin-top: 12px;
             background: rgba(15, 23, 42, 0.9);
             border: 1px solid rgba(56, 189, 248, 0.3);
@@ -101,10 +101,10 @@ html_code = f"""
             color: #e2e8f0;
             text-align: center;
             max-width: 600px;
-        }}
+        }
 
         /* Chat Window */
-        .chat-box {{
+        .chat-box {
             background: #0b0f19;
             border: 1px solid #1e293b;
             border-radius: 20px;
@@ -115,25 +115,25 @@ html_code = f"""
             flex-direction: column;
             gap: 12px;
             box-shadow: inset 0 4px 15px rgba(0,0,0,0.5);
-        }}
+        }
 
-        .message {{
+        .message {
             padding: 12px 18px;
             border-radius: 14px;
             max-width: 80%;
             font-size: 14px;
             line-height: 1.5;
-        }}
+        }
 
-        .user-msg {{ background: #0284c7; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }}
-        .ai-msg {{ background: #1e293b; color: #f8fafc; align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid #334155; }}
+        .user-msg { background: #0284c7; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .ai-msg { background: #1e293b; color: #f8fafc; align-self: flex-start; border-bottom-left-radius: 2px; border: 1px solid #334155; }
 
-        .input-area {{
+        .input-area {
             display: flex;
             gap: 10px;
-        }}
+        }
 
-        input[type="text"] {{
+        input[type="text"] {
             flex: 1;
             background: #0f172a;
             border: 1px solid #334155;
@@ -142,10 +142,10 @@ html_code = f"""
             border-radius: 12px;
             font-size: 15px;
             outline: none;
-        }}
-        input[type="text"]:focus {{ border-color: #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,0.3); }}
+        }
+        input[type="text"]:focus { border-color: #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,0.3); }
 
-        button {{
+        button {
             background: linear-gradient(135deg, #0284c7, #2563eb);
             color: white;
             border: none;
@@ -154,8 +154,8 @@ html_code = f"""
             font-weight: bold;
             cursor: pointer;
             transition: 0.2s;
-        }}
-        button:hover {{ opacity: 0.9; transform: scale(1.02); }}
+        }
+        button:hover { opacity: 0.9; transform: scale(1.02); }
     </style>
 </head>
 <body>
@@ -181,15 +181,15 @@ html_code = f"""
 
         <!-- Input Box -->
         <div class="input-area">
-            <input type="text" id="userInput" placeholder="यहाँ अपना संदेश या कमांड लिखें (जैसे: हेलो)..." onkeydown="if(event.key === 'KeyE' || event.key === 'Enter') sendMessage()">
+            <input type="text" id="userInput" placeholder="यहाँ अपना संदेश या कमांड लिखें (जैसे: हेलो)..." onkeydown="if(event.key === 'Enter') sendMessage()">
             <button onclick="sendMessage()">भेजें 🚀</button>
         </div>
     </div>
 
     <script>
-        const apiKey = "{api_key}";
+        const apiKey = "__API_KEY_PLACEHOLDER__";
 
-        async function sendMessage() {{
+        async function sendMessage() {
             const inputField = document.getElementById("userInput");
             const chatBox = document.getElementById("chatBox");
             const speechText = document.getElementById("speechText");
@@ -198,53 +198,56 @@ html_code = f"""
             const text = inputField.value.trim();
             if(!text) return;
 
-            if(!apiKey) {{
+            if(!apiKey) {
                 alert("कृपया पहले साइडबार में अपनी Gemini API Key दर्ज करें!");
                 return;
-            }}
+            }
 
             // Append User Message
-            chatBox.innerHTML += `<div class="message user-msg">${{text}}</div>`;
+            chatBox.innerHTML += `<div class="message user-msg">${text}</div>`;
             inputField.value = "";
             chatBox.scrollTop = chatBox.scrollHeight;
 
             // Show Thinking state
             speechText.innerText = "⚡ सोचने और प्रोसेस करने में एक सेकंड...";
-            neuralFace.style.boxShadow = "0 0 60px #eab308"; // Yellow glow while thinking
+            neuralFace.style.boxShadow = "0 0 60px #eab308";
 
-            try {{
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${{apiKey}}`, {{
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`, {
                     method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{
-                        contents: [{{
-                            parts: [{{ text: "You are an elite, human-like virtual executive manager. Reply instantly, smartly, and conversationally in natural Hinglish/Hindi. User: " + text }}]
-                        }}]
-                    }})
-                }});
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{ text: "You are an elite, human-like virtual executive manager. Reply instantly, smartly, and conversationally in natural Hinglish/Hindi. User: " + text }]
+                        }]
+                    })
+                });
 
                 const data = await response.json();
                 
-                if(data.candidates && data.candidates[0].content.parts[0].text) {{
+                if(data.candidates && data.candidates[0].content.parts[0].text) {
                     const reply = data.candidates[0].content.parts[0].text;
-                    chatBox.innerHTML += `<div class="message ai-msg">${{reply}}</div>`;
-                    speechText.innerText = `"${{reply.substring(0, 90)}}..."`;
-                    neuralFace.style.boxShadow = "0 0 50px rgba(56, 189, 248, 0.8)"; // Back to blue glow
-                }} else {{
+                    chatBox.innerHTML += `<div class="message ai-msg">${reply}</div>`;
+                    speechText.innerText = `"${reply.substring(0, 90)}..."`;
+                    neuralFace.style.boxShadow = "0 0 50px rgba(56, 189, 248, 0.8)";
+                } else {
                     chatBox.innerHTML += `<div class="message ai-msg">⚠️ API Error: अमान्य रिस्पॉन्स मिला। कृपया API Key जाँचें।</div>`;
                     speechText.innerText = "⚠️ कनेक्शन एरर!";
-                }}
-            } catch (error) {{
-                chatBox.innerHTML += `<div class="message ai-msg">⚠️ Network Error: ${{error.message}}</div>`;
+                }
+            } catch (error) {
+                chatBox.innerHTML += `<div class="message ai-msg">⚠️ Network Error: ${error.message}</div>`;
                 speechText.innerText = "⚠️ नेटवर्क में समस्या है।";
-            }}
+            }
             
             chatBox.scrollTop = chatBox.scrollHeight;
-        }}
+        }
     </script>
 </body>
 </html>
 """
+
+# Inject API Key safely without f-string bracket crashes
+html_code = html_template.replace("__API_KEY_PLACEHOLDER__", api_key)
 
 # Render in Streamlit using components.html
 import streamlit.components.v1 as components
